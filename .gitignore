@@ -33,6 +33,23 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Archivos de prueba y scripts temporales
+test*.js
+check-data.js
+parse-models.js
+run-test.ps1
+patch_pdf.py
+logs.txt
+
+# Datos temporales y archivos de seeds locales
+temp_*.sql
+model-list.json
+models.json
+
+# Documentación interna de desarrollo (no relevante para el repo)
+APPLY_MIGRATION_INSTRUCTIONS.md
+schema.sql
+
 # vercel
 .vercel
 

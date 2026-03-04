@@ -1,0 +1,27 @@
+
+[functions.generate-unidad-aprendizaje]
+enabled = true
+verify_jwt = false
+import_map = "./functions/generate-unidad-aprendizaje/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/generate-unidad-aprendizaje/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/generate-unidad-aprendizaje/*.html" ]
+
+[functions.list-models]
+enabled = true
+verify_jwt = true
+import_map = "./functions/list-models/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/list-models/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/list-models/*.html" ]
+
+[functions.generate-secuencia-sesion]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/generate-secuencia-sesion/index.ts"

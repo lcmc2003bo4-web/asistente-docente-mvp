@@ -1,26 +1,191 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════
+   AND Design System v1.0 — Asistente Normativo Docente
+   Sprint 1 · Marzo 2026
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
+  /* ── Superficie base ── */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
+
+  /* ── Color Primario — Indigo ── */
+  --color-primary-50:  #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;   /* Base de marca */
+  --color-primary-700: #4338ca;   /* Hover */
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  /* ── Neutrales — Slate ── */
+  --color-neutral-50:  #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+
+  /* ── Semánticos ── */
+  --color-success:       #10b981;   /* Válido */
+  --color-success-light: #d1fae5;
+  --color-success-dark:  #065f46;
+
+  --color-warning:       #f59e0b;   /* Pendiente */
+  --color-warning-light: #fef3c7;
+  --color-warning-dark:  #92400e;
+
+  --color-error:         #ef4444;   /* Error / Inválido */
+  --color-error-light:   #fee2e2;
+  --color-error-dark:    #991b1b;
+
+  --color-info:          #3b82f6;   /* Informativo */
+  --color-info-light:    #dbeafe;
+  --color-info-dark:     #1e40af;
+
+  /* ── Color por módulo ── */
+  --color-programacion:       #3b82f6;
+  --color-programacion-light: #dbeafe;
+  --color-unidad:             #8b5cf6;
+  --color-unidad-light:       #ede9fe;
+  --color-sesion:             #6366f1;
+  --color-sesion-light:       #e0e7ff;
+  --color-validacion:         #10b981;
+  --color-validacion-light:   #d1fae5;
+
+  /* ── Superficie ── */
+  --color-surface:         #ffffff;
+  --color-surface-raised:  #f8fafc;
+  --color-surface-overlay: rgba(15, 23, 42, 0.05);
+  --color-border:          #e2e8f0;
+  --color-border-focus:    #4f46e5;
+
+  /* ── Tipografía ── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', 'Fira Code', monospace;
+
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.875rem;   /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg:   1.125rem;   /* 18px */
+  --text-xl:   1.25rem;    /* 20px */
+  --text-2xl:  1.5rem;     /* 24px */
+  --text-3xl:  2rem;       /* 32px */
+
+  /* ── Espaciado (base 4px) ── */
+  --space-1:  0.25rem;   /* 4px  */
+  --space-2:  0.5rem;    /* 8px  */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.25rem;   /* 20px */
+  --space-6:  1.5rem;    /* 24px */
+  --space-8:  2rem;      /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+
+  /* ── Border Radius ── */
+  --radius-sm:   0.375rem;   /* 6px  — badges, pills */
+  --radius-md:   0.5rem;     /* 8px  — inputs, small cards */
+  --radius-lg:   0.75rem;    /* 12px — cards estándar */
+  --radius-xl:   1rem;       /* 16px — cards grandes, botones */
+  --radius-2xl:  1.25rem;    /* 20px — modales */
+  --radius-full: 9999px;     /* chips, avatares */
+
+  /* ── Sombras (jerarquía de elevación) ── */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px 0 rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 32px 0 rgba(0, 0, 0, 0.16);
+  --shadow-xl: 0 16px 48px 0 rgba(0, 0, 0, 0.20);
+
+  /* ── Transiciones ── */
+  --transition-fast:   100ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow:   300ms ease;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Reset base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
+  background: var(--color-surface-raised);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+/* ── Scrollbar personalizado (Chromium) ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-neutral-100);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
+
+/* ── Focus ring accesible (WCAG) ── */
+:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Animación reducida (accesibilidad) ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Utilidades de texto semántico ── */
+.text-primary   { color: var(--color-primary-600); }
+.text-success   { color: var(--color-success); }
+.text-warning   { color: var(--color-warning); }
+.text-error     { color: var(--color-error); }
+.text-muted     { color: var(--color-neutral-500); }
+
+/* ── Skeleton loading animation ── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.skeleton {
+  background: var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── AND Brand: sidebar active state ── */
+.nav-item-active {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 600;
+  border-left: 3px solid var(--color-primary-600);
 }
