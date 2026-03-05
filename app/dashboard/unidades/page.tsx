@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import LimitedCreateButton from '@/components/ui/LimitedCreateButton'
 import type { Database } from '@/types/supabase'
 
 type UnidadWithProgramacion = Database['public']['Tables']['unidades']['Row'] & {
@@ -159,12 +160,13 @@ export default function UnidadesPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Unidades Didácticas</h1>
                     <p className="text-sm text-slate-500 mt-0.5">Organiza el contenido de tus programaciones anuales</p>
                 </div>
-                <Link
+                <LimitedCreateButton
                     href="/dashboard/unidades/nueva"
+                    limitType="unidad"
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-sm"
                 >
                     <PlusIcon /> Nueva Unidad
-                </Link>
+                </LimitedCreateButton>
             </div>
 
             {/* ── Stats row ── */}
@@ -232,9 +234,9 @@ export default function UnidadesPage() {
                     </div>
                     <h3 className="text-base font-semibold text-slate-700 mb-1">No hay unidades creadas</h3>
                     <p className="text-sm text-slate-400 max-w-xs mb-6">Crea tu primera unidad didáctica para comenzar a organizar tus sesiones</p>
-                    <Link href="/dashboard/unidades/nueva" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all">
+                    <LimitedCreateButton href="/dashboard/unidades/nueva" limitType="unidad" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all">
                         <PlusIcon /> Nueva Unidad
-                    </Link>
+                    </LimitedCreateButton>
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="flex flex-col items-center py-12 text-center bg-white rounded-2xl border border-slate-200">

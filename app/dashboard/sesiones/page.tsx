@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import LimitedCreateButton from '@/components/ui/LimitedCreateButton'
 import type { SesionWithRelations } from '@/lib/services/SesionService'
 
 // ── Íconos SVG ──────────────────────────────────────────────────────
@@ -168,12 +169,13 @@ export default function SesionesPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Sesiones de Aprendizaje</h1>
                     <p className="text-sm text-slate-500 mt-0.5">Gestiona y valida tus sesiones de clase según normativa</p>
                 </div>
-                <Link
+                <LimitedCreateButton
                     href="/dashboard/sesiones/nueva"
+                    limitType="sesion"
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-sm"
                 >
                     <PlusIcon /> Nueva Sesión
-                </Link>
+                </LimitedCreateButton>
             </div>
 
             {/* ── Stat cards ── */}
@@ -307,9 +309,9 @@ export default function SesionesPage() {
                     </div>
                     <h3 className="text-base font-semibold text-slate-700 mb-1">No hay sesiones creadas</h3>
                     <p className="text-sm text-slate-400 max-w-xs mb-6">Comienza creando tu primera sesión alineada al CNEB</p>
-                    <Link href="/dashboard/sesiones/nueva" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all">
+                    <LimitedCreateButton href="/dashboard/sesiones/nueva" limitType="sesion" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all">
                         <PlusIcon /> Crear Primera Sesión
-                    </Link>
+                    </LimitedCreateButton>
                 </div>
             ) : filtered.length === 0 ? (
                 <div className="flex flex-col items-center py-16 text-center bg-white rounded-2xl border border-slate-200">

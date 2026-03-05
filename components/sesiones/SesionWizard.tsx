@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { sesionService, type DesempenoDisponible, type SecuenciaData } from '@/lib/services/SesionService'
 import { generarSecuenciaSesion } from '@/lib/services/AIService'
+import { getUserUsage, checkAiGenerationLimit, incrementAiGeneration } from '@/lib/services/UsageService'
 import SecuenciaBuilder from './SecuenciaBuilder'
 import SesionPreviewTables from './SesionPreviewTables'
 import EditableSesionTables from './EditableSesionTables'
+import UpgradeModal from '@/components/ui/UpgradeModal'
 
 interface SesionWizardProps {
     unidadId?: string
@@ -88,6 +90,8 @@ export default function SesionWizard({
     const [loadingDesempenos, setLoadingDesempenos] = useState(false)
     const [loadingIA, setLoadingIA] = useState(false)
     const [iaError, setIaError] = useState<string | null>(null)
+    const [upgradeOpen, setUpgradeOpen] = useState(false)
+    const [upgradeReason, setUpgradeReason] = useState<string | undefined>()
 
     const supabase = createClient()
 
@@ -226,6 +230,18 @@ export default function SesionWizard({
             setIaError('Completa el título y selecciona unidad (Paso 1) antes de generar con IA.')
             return
         }
+        // ── Check AI generation limit ──
+        try {
+            const usage = await getUserUsage()
+            const limitCheck = checkAiGenerationLimit(usage)
+            if (!limitCheck.allowed) {
+                setUpgradeReason(limitCheck.reason)
+                setUpgradeOpen(true)
+                return
+            }
+        } catch {
+            // If limit check fails, allow the generation to proceed
+        }
         setIaError(null)
         setLoadingIA(true)
         try {
@@ -283,6 +299,8 @@ export default function SesionWizard({
                 secuencias,
                 contenido_ia: result
             }))
+            // Increment AI generation usage counter
+            try { await incrementAiGeneration() } catch { /* non-blocking */ }
         } catch (err: any) {
             setIaError(err.message ?? 'Error al conectar con la IA')
         } finally {
@@ -292,6 +310,12 @@ export default function SesionWizard({
 
     return (
         <div className="max-w-5xl mx-auto">
+            {/* Upgrade modal for AI limit */}
+            <UpgradeModal
+                isOpen={upgradeOpen}
+                onClose={() => setUpgradeOpen(false)}
+                reason={upgradeReason}
+            />
             {/* Progress Steps */}
             <div className="mb-8">
                 <div className="flex items-center justify-between">

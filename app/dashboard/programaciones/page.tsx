@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import LimitedCreateButton from '@/components/ui/LimitedCreateButton'
 
 // ── Íconos SVG (sin emojis) ───────────────────────────────────────────
 const CalendarIcon = ({ className = 'w-5 h-5' }) => (
@@ -78,12 +79,13 @@ export default async function ProgramacionesPage() {
                     <h1 className="text-2xl font-bold text-slate-900">Programaciones Anuales</h1>
                     <p className="text-sm text-slate-500 mt-0.5">Planifica tu año escolar por área y grado según el CNEB</p>
                 </div>
-                <Link
+                <LimitedCreateButton
                     href="/dashboard/programaciones/nueva"
+                    limitType="programacion"
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-sm flex-shrink-0"
                 >
                     <PlusIcon /> Nueva Programación
-                </Link>
+                </LimitedCreateButton>
             </div>
 
             {/* ── Stat cards ── */}
@@ -126,12 +128,13 @@ export default async function ProgramacionesPage() {
                     </div>
                     <h3 className="text-base font-semibold text-slate-700 mb-1">Sin programaciones aún</h3>
                     <p className="text-sm text-slate-400 max-w-xs mb-6">Crea tu primera programación anual para comenzar a organizar tu año escolar</p>
-                    <Link
+                    <LimitedCreateButton
                         href="/dashboard/programaciones/nueva"
+                        limitType="programacion"
                         className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all"
                     >
                         <PlusIcon /> Crear Primera Programación
-                    </Link>
+                    </LimitedCreateButton>
                 </div>
             ) : (
                 /* ── Card-row list (Stitch pattern) ── */

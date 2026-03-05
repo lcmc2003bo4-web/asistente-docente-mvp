@@ -302,17 +302,24 @@ export default function ValidacionDashboardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-indigo-800">
                     <div>
                         <a
-                            href="https://www.minedu.gob.pe/curriculo/"
+                            href="http://www.minedu.gob.pe/curriculo/pdf/curriculo-nacional-de-la-educacion-basica.pdf"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-semibold mb-1 underline decoration-dotted underline-offset-2 hover:text-indigo-900 transition-colors cursor-pointer"
+                            className="font-semibold mb-1 underline decoration-dotted underline-offset-2 hover:text-indigo-900 transition-colors cursor-pointer block"
                         >
-                            CNEB 2024 ↗
+                            CNEB 2026 ↗
                         </a>
                         <p className="text-indigo-600">Currículo Nacional de Educación Básica actualizado — Competencias y desempeños vigentes</p>
                     </div>
                     <div>
-                        <div className="font-semibold mb-1">Norma Técnica MINEDU</div>
+                        <a
+                            href="https://www.gob.pe/institucion/minedu/normas-legales/tipos/11-resolucion-ministerial"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold mb-1 underline decoration-dotted underline-offset-2 hover:text-indigo-900 transition-colors cursor-pointer block"
+                        >
+                            Norma Técnica MINEDU ↗
+                        </a>
                         <p className="text-indigo-600">Orientaciones para la planificación curricular anual y de unidades</p>
                     </div>
                     <div>

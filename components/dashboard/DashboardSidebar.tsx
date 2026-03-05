@@ -2,6 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+import UsageBanner from '@/components/ui/UsageBanner'
+import UpgradeModal from '@/components/ui/UpgradeModal'
+import { useUsage } from '@/hooks/useUsage'
 
 interface NavItem {
     href: string
@@ -81,6 +85,8 @@ const NAV_GROUPS: NavGroup[] = [
 
 export default function DashboardSidebar({ name }: { name: string }) {
     const pathname = usePathname()
+    const { usage } = useUsage()
+    const [upgradeOpen, setUpgradeOpen] = useState(false)
 
     // La ruta /dashboard exacta es solo activa para ese ítem, no para subpáginas
     const isActive = (href: string) => {
@@ -131,6 +137,13 @@ export default function DashboardSidebar({ name }: { name: string }) {
                     ))}
                 </nav>
 
+                {/* Usage banner */}
+                {usage && (
+                    <div className="px-3 pb-2">
+                        <UsageBanner usage={usage} onUpgradeClick={() => setUpgradeOpen(true)} />
+                    </div>
+                )}
+
                 {/* Footer del sidebar — usuario */}
                 <div className="border-t border-slate-100 p-3">
                     <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg">
@@ -141,6 +154,12 @@ export default function DashboardSidebar({ name }: { name: string }) {
                     </div>
                 </div>
             </aside>
+
+            {/* Upgrade modal (shared across the app via sidebar) */}
+            <UpgradeModal
+                isOpen={upgradeOpen}
+                onClose={() => setUpgradeOpen(false)}
+            />
         </>
     )
 }
