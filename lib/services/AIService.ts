@@ -126,37 +126,46 @@ export async function generarSecuenciaSesion(params: {
     contexto_extra?: string
 }): Promise<SecuenciaResult> {
     const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Usuario no autenticado')
+
     console.log("--- PAYLOAD ENVIADO A LA IA ---", JSON.stringify(params, null, 2))
 
-    const { data, error } = await supabase.functions.invoke<SecuenciaResult>(
-        'generate-secuencia-sesion',
-        { body: params }
-    )
-    if (error) {
-        let errorDetalle = error.message
-        let rawCtxText = ""
-        try {
-            if (error && typeof error === 'object' && 'context' in error) {
-                const ctxObj = (error as any).context
-                console.error("--- RAW EDGE FUNCTION ERROR CONTEXT ---", ctxObj)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-                if (ctxObj && typeof ctxObj === 'object') {
-                    if (ctxObj.error) {
-                        errorDetalle = `Error en servidor: ${ctxObj.error} \n ${ctxObj.details || ''}`
-                    } else if (ctxObj.message) {
-                        errorDetalle = `Error en servidor: ${ctxObj.message}`
-                    }
+    const response = await fetch(`${supabaseUrl}/functions/v1/generate-secuencia-sesion`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': anonKey!
+        },
+        body: JSON.stringify(params)
+    })
+
+    if (!response.ok) {
+        let errorDetalle = `Error HTTP ${response.status}`
+        const errorText = await response.text().catch(() => '')
+        try {
+            if (errorText) {
+                const errJson = JSON.parse(errorText)
+                console.error('SERVER JSON ERROR:', errJson)
+                errorDetalle = errJson.error || errorDetalle
+                if (errJson.details) {
+                    errorDetalle += ` \n ${errJson.details}`
                 }
             }
-        } catch (e) {
-            console.error("Fallo al parsear el error del servidor", e)
+        } catch {
+            console.error('SERVER TEXT ERROR:', errorText)
+            errorDetalle = errorText || errorDetalle
         }
-        throw new Error(errorDetalle)
+        throw new Error(`Error en servidor: ${errorDetalle}`)
     }
-    if (!data) throw new Error('La función no devolvió datos')
-    if ((data as any).error) {
-        console.error("DEBUG IA ERROR:", (data as any).error, (data as any).details);
-        throw new Error(`Error de IA generativa: ${(data as any).error} \n ${(data as any).details || ''}`);
+
+    const data = await response.json()
+    if (data.error) {
+        throw new Error(`Error de IA generativa: ${data.error} \n ${data.details || ''}`)
     }
     return data
 }

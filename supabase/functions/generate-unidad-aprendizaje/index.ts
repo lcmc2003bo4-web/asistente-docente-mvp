@@ -11,6 +11,32 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+    // Importante: No importamos createClient explícitamente porque esto rompería si no está instalado, 
+    // pero podemos obtener el edge-runtime client si lo necesitamos, 
+    // o simplemente verificamos enviando un fetch a /auth/v1/user
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: authHeader,
+        apikey: supabaseAnonKey,
+      },
+    });
+
+    if (!authResponse.ok) {
+      return new Response(JSON.stringify({ error: 'Token inválido o expirado' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     const params = await req.json();
     const { titulo, grado_nombre, area_nombre, duracion_semanas, sesiones_list, competencias_seleccionadas } = params;
 

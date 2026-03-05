@@ -90,6 +90,29 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'No autorizado' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+    const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: authHeader,
+        apikey: supabaseAnonKey,
+      },
+    });
+
+    if (!authResponse.ok) {
+      return new Response(JSON.stringify({ error: 'Token inválido o expirado' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     const params = await req.json()
     const {
       // Contexto Sesion
@@ -276,8 +299,7 @@ Deberás retornar estrictamente la siguiente estructura JSON (sin usar bloques M
     ]
 }
   ],
-// ... existing Evaluacion JSON part ...
-"evaluacion": {
+  "evaluacion": {
   "aprendizajes": [
     {
       "criterio": "Comunica su comprensión sobre las relaciones",
