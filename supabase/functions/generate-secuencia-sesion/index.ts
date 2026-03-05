@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const geminiKey = "AIzaSyDR8AVRwLBWWaOCruq8bV1P2gXaFdbQKtY"
+    const geminiKey = Deno.env.get('GEMINI_API_KEY') || ""
     console.log('--- Nueva petición de generación ---')
     console.log('Contexto:', { titulo_sesion, unidad_titulo, area_nombre, duracion_minutos })
 

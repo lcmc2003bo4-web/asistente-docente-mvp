@@ -7,8 +7,8 @@ const corsHeaders = {
 }
 
 // ─── Gemini API ────────────────────────────────────────────────────────────────
-const GEMINI_API_KEY = "AIzaSyA75AEbGHt7E85J9iDlZbdcFJskPVh50NQ"
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
+const GEMINI_API_KEY_CHAT = Deno.env.get('GEMINI_API_KEY_CHAT') || ""
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY_CHAT}`
 
 // ─── System Prompts ────────────────────────────────────────────────────────────
 
