@@ -6,6 +6,60 @@ export type Json =
     | { [key: string]: Json | undefined }
     | Json[]
 
+// -------------------------------------------------------
+// Tipos de contextualización institucional
+// -------------------------------------------------------
+export type TipoGestion = 'Pública' | 'Privada' | 'Parroquial' | 'Fe y Alegría' | 'Otro';
+export type ZonaGeografica = 'Urbana' | 'Rural' | 'Urbano-marginal';
+export type NivelSocioeconomico = 'Bajo' | 'Medio-bajo' | 'Medio' | 'Medio-alto' | 'Alto';
+
+/** Campos extendidos de contextualización añadidos a la tabla `instituciones` */
+export interface ContextoInstitucionalFields {
+    tipo_gestion: TipoGestion | null;
+    zona: ZonaGeografica | null;
+    region: string | null;
+    distrito: string | null;
+    mision: string | null;
+    vision: string | null;
+    valores: string[] | null;
+    enfoque_religioso: string | null;
+    contexto_socioeconomico: NivelSocioeconomico | null;
+    actividades_economicas: string[] | null;
+    identidad_cultural: string | null;
+    problematicas_locales: string[] | null;
+    festividades_regionales: string[] | null;
+    proyectos_comunitarios: string[] | null;
+    perfil_completado: boolean;
+}
+
+/** Payload de contexto que se envía en el body de generate-unidad-aprendizaje */
+export interface ContextoInstitucionalPayload {
+    nombre_institucion: string;
+    tipo_gestion: TipoGestion;
+    zona: ZonaGeografica;
+    region: string;
+    distrito: string;
+    contexto_socioeconomico: NivelSocioeconomico;
+    actividades_economicas: string[];
+    identidad_cultural?: string | null;
+    problematicas_locales: string[];
+    festividades_regionales: string[];
+    proyectos_comunitarios: string[];
+    mision?: string | null;
+    vision?: string | null;
+    valores: string[];
+    enfoque_religioso?: string | null;
+}
+
+export interface ContextoAulaPayload {
+    seccion?: string | null;
+    num_estudiantes?: number | null;
+    intereses_comunes: string[];
+    retos_educativos: string[];
+    nivel_socioeconomico?: NivelSocioeconomico | null;
+    caracteristicas_adicionales?: string | null;
+}
+
 export interface UserPreferencias {
     duracion_sesion?: number        // Default: 90 min
     nivel?: 'Inicial' | 'Primaria' | 'Secundaria'
@@ -67,7 +121,7 @@ export interface Database {
                     es_predeterminada: boolean
                     created_at: string
                     updated_at: string
-                }
+                } & ContextoInstitucionalFields
                 Insert: {
                     id?: string
                     user_id: string
@@ -79,6 +133,21 @@ export interface Database {
                     es_predeterminada?: boolean
                     created_at?: string
                     updated_at?: string
+                    tipo_gestion?: TipoGestion | null
+                    zona?: ZonaGeografica | null
+                    region?: string | null
+                    distrito?: string | null
+                    mision?: string | null
+                    vision?: string | null
+                    valores?: string[] | null
+                    enfoque_religioso?: string | null
+                    contexto_socioeconomico?: NivelSocioeconomico | null
+                    actividades_economicas?: string[] | null
+                    identidad_cultural?: string | null
+                    problematicas_locales?: string[] | null
+                    festividades_regionales?: string[] | null
+                    proyectos_comunitarios?: string[] | null
+                    perfil_completado?: boolean
                 }
                 Update: {
                     id?: string
@@ -89,6 +158,68 @@ export interface Database {
                     ugel?: string | null
                     logo_url?: string | null
                     es_predeterminada?: boolean
+                    created_at?: string
+                    updated_at?: string
+                    tipo_gestion?: TipoGestion | null
+                    zona?: ZonaGeografica | null
+                    region?: string | null
+                    distrito?: string | null
+                    mision?: string | null
+                    vision?: string | null
+                    valores?: string[] | null
+                    enfoque_religioso?: string | null
+                    contexto_socioeconomico?: NivelSocioeconomico | null
+                    actividades_economicas?: string[] | null
+                    identidad_cultural?: string | null
+                    problematicas_locales?: string[] | null
+                    festividades_regionales?: string[] | null
+                    proyectos_comunitarios?: string[] | null
+                    perfil_completado?: boolean
+                }
+            }
+            contexto_aula: {
+                Row: {
+                    id: string
+                    user_id: string
+                    institucion_id: string
+                    anio_escolar: number
+                    grado_id: string | null
+                    seccion: string | null
+                    num_estudiantes: number | null
+                    intereses_comunes: string[] | null
+                    retos_educativos: string[] | null
+                    nivel_socioeconomico: NivelSocioeconomico | null
+                    caracteristicas_adicionales: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    institucion_id: string
+                    anio_escolar: number
+                    grado_id?: string | null
+                    seccion?: string | null
+                    num_estudiantes?: number | null
+                    intereses_comunes?: string[] | null
+                    retos_educativos?: string[] | null
+                    nivel_socioeconomico?: NivelSocioeconomico | null
+                    caracteristicas_adicionales?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    institucion_id?: string
+                    anio_escolar?: number
+                    grado_id?: string | null
+                    seccion?: string | null
+                    num_estudiantes?: number | null
+                    intereses_comunes?: string[] | null
+                    retos_educativos?: string[] | null
+                    nivel_socioeconomico?: NivelSocioeconomico | null
+                    caracteristicas_adicionales?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -135,6 +266,7 @@ export interface Database {
                     institucion: string | null
                     logo_url: string | null
                     secciones: string[] | null
+                    institucion_id: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -151,6 +283,7 @@ export interface Database {
                     institucion?: string | null
                     logo_url?: string | null
                     secciones?: string[] | null
+                    institucion_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -167,6 +300,7 @@ export interface Database {
                     institucion?: string | null
                     logo_url?: string | null
                     secciones?: string[] | null
+                    institucion_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -195,6 +329,7 @@ export interface Database {
                     duracion_semanas: number
                     situacion_significativa: string | null
                     estado: 'Borrador' | 'Validado'
+                    tiene_contexto_institucional: boolean
                     created_at: string
                     updated_at: string
                 }
@@ -207,6 +342,7 @@ export interface Database {
                     duracion_semanas: number
                     situacion_significativa?: string | null
                     estado?: 'Borrador' | 'Validado'
+                    tiene_contexto_institucional?: boolean
                     created_at?: string
                     updated_at?: string
                 }
@@ -219,6 +355,7 @@ export interface Database {
                     duracion_semanas?: number
                     situacion_significativa?: string | null
                     estado?: 'Borrador' | 'Validado'
+                    tiene_contexto_institucional?: boolean
                     created_at?: string
                     updated_at?: string
                 }

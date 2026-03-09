@@ -192,6 +192,10 @@ export async function sugerirDistribucionCompetencias(params: {
 /**
  * Genera el cuerpo de una Unidad de Aprendizaje (Situación, Propósito, Evidencias, Matriz)
  * de forma contextualizada a través de la Edge Function `generate-unidad-aprendizaje`.
+ *
+ * Los parámetros `contexto_institucional` y `contexto_aula` son opcionales:
+ * si se proporcionan, la IA generará situaciones significativas específicas
+ * a la realidad de la institución y el aula del docente.
  */
 export async function generarUnidadAprendizaje(params: {
     titulo: string
@@ -200,6 +204,10 @@ export async function generarUnidadAprendizaje(params: {
     duracion_semanas: number
     sesiones_list: string[]
     competencias_seleccionadas?: string[]
+    /** Contexto del colegio — mejora drásticamente la situación significativa */
+    contexto_institucional?: import('@/types/database.types').ContextoInstitucionalPayload | null
+    /** Contexto específico del aula del docente */
+    contexto_aula?: import('@/types/database.types').ContextoAulaPayload | null
 }): Promise<UnidadIAResult> {
     const supabase = createClient()
     const { data, error } = await supabase.functions.invoke<UnidadIAResult>(

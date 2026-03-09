@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import RecentDocumentsList from '@/components/dashboard/RecentDocumentsList'
 import EmptyState from '@/components/ui/EmptyState'
+import ContextoInstitucionalBanner from '@/components/configuracion/ContextoInstitucionalBanner'
 
 // ── Íconos SVG Lucide (inline, sin dependencia) ────────────────────
 const CalendarIcon = () => (
@@ -93,6 +94,14 @@ export default async function DashboardPage() {
         ? Math.round((Number(stats.sesionesValidas) / totalSesiones) * 100)
         : 0
 
+    // Institución predeterminada — perfil de contextualización
+    const { data: institucionPredeterminada } = await supabase
+        .from('instituciones')
+        .select('id, nombre, perfil_completado')
+        .eq('user_id', user!.id)
+        .eq('es_predeterminada', true)
+        .maybeSingle()
+
     // Documentos recientes
     const { data: rawDocs } = await supabase
         .from('documentos_recientes')
@@ -145,6 +154,14 @@ export default async function DashboardPage() {
                     Nuevo Documento
                 </Link>
             </div>
+
+            {/* ── Banner de Contextualización (no bloqueante) ── */}
+            {institucionPredeterminada && !institucionPredeterminada.perfil_completado && (
+                <ContextoInstitucionalBanner
+                    institucionNombre={institucionPredeterminada.nombre}
+                    className="mb-5"
+                />
+            )}
 
             {/* ── Stats Cards ── */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-7">

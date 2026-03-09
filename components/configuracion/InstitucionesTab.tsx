@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useUserProfile } from '@/hooks/useUserProfile'
 import { institucionService } from '@/lib/services/InstitucionService'
 import type { Institucion } from '@/hooks/useUserProfile'
@@ -23,6 +24,7 @@ const EMPTY_FORM: FormState = {
 
 export function InstitucionesTab() {
     const { profile, loading, refresh } = useUserProfile()
+    const router = useRouter()
     const [showModal, setShowModal] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [form, setForm] = useState<FormState>(EMPTY_FORM)
@@ -160,58 +162,84 @@ export function InstitucionesTab() {
 
             {/* Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {instituciones.map(inst => (
-                    <div key={inst.id} className={`relative bg-white rounded-xl border-2 p-5 transition ${inst.es_predeterminada ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
-                        {inst.es_predeterminada && (
-                            <span className="absolute top-3 right-3 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                                ✓ Predeterminada
-                            </span>
-                        )}
+                {instituciones.map(inst => {
+                    const perfilOk = !!(inst as any).perfil_completado
 
-                        <div className="flex items-start gap-4">
-                            {/* Logo */}
-                            <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                                {inst.logo_url ? (
-                                    <img src={inst.logo_url} alt={inst.nombre} className="w-full h-full object-contain p-1" />
-                                ) : (
-                                    <span className="text-2xl">🏫</span>
-                                )}
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-semibold text-gray-900 truncate">{inst.nombre}</h3>
-                                {inst.ugel && <p className="text-xs text-gray-500 truncate">{inst.ugel}</p>}
-                                {inst.codigo_modular && <p className="text-xs text-gray-400">Cód. {inst.codigo_modular}</p>}
-                                {inst.direccion && <p className="text-xs text-gray-400 truncate mt-0.5">{inst.direccion}</p>}
-                            </div>
-                        </div>
-
-                        <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-                            {!inst.es_predeterminada && (
-                                <button
-                                    onClick={() => handleSetDefault(inst)}
-                                    className="flex-1 text-xs py-1.5 border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition font-medium"
-                                >
-                                    Marcar como predeterminada
-                                </button>
+                    return (
+                        <div key={inst.id} className={`relative bg-white rounded-xl border-2 p-5 transition ${inst.es_predeterminada ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                            {inst.es_predeterminada && (
+                                <span className="absolute top-3 right-3 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                    ✓ Predeterminada
+                                </span>
                             )}
-                            <button
-                                onClick={() => openEdit(inst)}
-                                className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50 transition"
-                            >
-                                Editar
-                            </button>
-                            <button
-                                onClick={() => handleDelete(inst)}
-                                disabled={deleting === inst.id}
-                                className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs hover:bg-red-50 transition disabled:opacity-40"
-                            >
-                                {deleting === inst.id ? '...' : 'Eliminar'}
-                            </button>
+
+                            <div className="flex items-start gap-4">
+                                {/* Logo */}
+                                <div className="w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                                    {inst.logo_url ? (
+                                        <img src={inst.logo_url} alt={inst.nombre} className="w-full h-full object-contain p-1" />
+                                    ) : (
+                                        <span className="text-2xl">🏫</span>
+                                    )}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-gray-900 truncate">{inst.nombre}</h3>
+                                    {inst.ugel && <p className="text-xs text-gray-500 truncate">{inst.ugel}</p>}
+                                    {inst.codigo_modular && <p className="text-xs text-gray-400">Cód. {inst.codigo_modular}</p>}
+                                    {inst.direccion && <p className="text-xs text-gray-400 truncate mt-0.5">{inst.direccion}</p>}
+                                    {/* Badge de estado de contexto */}
+                                    <div className="mt-2">
+                                        {perfilOk ? (
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                                ✓ Contexto IA completo
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                                ⚡ Contexto IA pendiente
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100 flex-wrap">
+                                {!inst.es_predeterminada && (
+                                    <button
+                                        onClick={() => handleSetDefault(inst)}
+                                        className="flex-1 text-xs py-1.5 border border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition font-medium"
+                                    >
+                                        Marcar como predeterminada
+                                    </button>
+                                )}
+                                {/* Botón de perfil contextual → navega a página dedicada */}
+                                <button
+                                    onClick={() => router.push(`/dashboard/configuracion/institucion/${inst.id}`)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${perfilOk
+                                        ? 'border border-green-200 text-green-700 hover:bg-green-50'
+                                        : 'border border-amber-200 text-amber-700 hover:bg-amber-50'
+                                        }`}
+                                >
+                                    {perfilOk ? '✎ Editar Contexto IA' : '✨ Completar Contexto IA'}
+                                </button>
+                                <button
+                                    onClick={() => openEdit(inst)}
+                                    className="px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs hover:bg-gray-50 transition"
+                                >
+                                    Editar
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(inst)}
+                                    disabled={deleting === inst.id}
+                                    className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs hover:bg-red-50 transition disabled:opacity-40"
+                                >
+                                    {deleting === inst.id ? '...' : 'Eliminar'}
+                                </button>
+                            </div>
+
                         </div>
-                    </div>
-                ))}
-            </div>
+                    )
+                })}            </div>
 
             {/* Modal */}
             {showModal && (

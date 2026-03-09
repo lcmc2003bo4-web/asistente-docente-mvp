@@ -8,6 +8,7 @@ import type { Database } from '@/types/supabase'
 import { generarUnidadAprendizaje, UnidadIAResult } from '@/lib/services/AIService'
 import { getUserUsage, checkAiGenerationLimit, incrementAiGeneration } from '@/lib/services/UsageService'
 import UpgradeModal from '@/components/ui/UpgradeModal'
+import { useContextoInstitucional } from '@/hooks/useContextoInstitucional'
 
 type Programacion = Database['public']['Tables']['programaciones']['Row']
 
@@ -72,6 +73,9 @@ export default function UnidadForm({
     const [upgradeOpen, setUpgradeOpen] = useState(false)
     const [upgradeReason, setUpgradeReason] = useState<string | undefined>()
 
+    // Contexto institucional para mejorar la generación de IA
+    const { contextoInstitucional, contextoAula, loadContexto } = useContextoInstitucional()
+
     // Cargar programaciones del usuario
     useEffect(() => {
         async function loadProgramaciones() {
@@ -83,7 +87,7 @@ export default function UnidadForm({
 
             const { data } = await supabase
                 .from('programaciones')
-                .select('*, areas(nombre), grados(nombre, nivel, id)')
+                .select('*, areas(nombre), grados(nombre, nivel, id), institucion_id, anio_escolar')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
 
@@ -99,13 +103,31 @@ export default function UnidadForm({
                         const aid = (prog as any).area_id
                         setAreaId(aid)
                         if (aid) loadCompetencias(aid)
+
+                        // Cargar contexto institucional para la programación pre-seleccionada
+                        const instId = (prog as any).institucion_id
+                        const anio = (prog as any).anio_escolar ?? new Date().getFullYear()
+                        const gradoId = (prog as any).grados?.id
+
+                        if (instId) {
+                            loadContexto(instId, anio, gradoId)
+                        } else {
+                            // Fallback: programación sin institución vinculada → usar la predeterminada del usuario
+                            const { data: instDefault } = await supabase
+                                .from('instituciones')
+                                .select('id')
+                                .eq('user_id', user.id)
+                                .eq('es_predeterminada', true)
+                                .single()
+                            if (instDefault) loadContexto(instDefault.id, anio, gradoId)
+                        }
                     }
                 }
             }
             setLoadingData(false)
         }
         loadProgramaciones()
-    }, [programacionId, router, supabase])
+    }, [programacionId, router, supabase, loadContexto])
 
     const loadCompetencias = async (aid: string) => {
         setLoadingCompetencias(true)
@@ -118,7 +140,7 @@ export default function UnidadForm({
         setLoadingCompetencias(false)
     }
 
-    const handleProgramacionChange = (progId: string) => {
+    const handleProgramacionChange = async (progId: string) => {
         const selectedProg = programaciones.find(p => p.id === progId)
         if (selectedProg) {
             setAreaNombre((selectedProg as any).areas?.nombre || '')
@@ -126,6 +148,27 @@ export default function UnidadForm({
             const aid = (selectedProg as any).area_id
             setAreaId(aid)
             if (aid) loadCompetencias(aid)
+
+            // Cargar contexto institucional
+            const instId = (selectedProg as any).institucion_id
+            const anio = (selectedProg as any).anio_escolar ?? new Date().getFullYear()
+            const gradoId = (selectedProg as any).grados?.id
+
+            if (instId) {
+                loadContexto(instId, anio, gradoId)
+            } else {
+                // Fallback: programación sin institución → usar la predeterminada del usuario
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    const { data: instDefault } = await supabase
+                        .from('instituciones')
+                        .select('id')
+                        .eq('user_id', user.id)
+                        .eq('es_predeterminada', true)
+                        .single()
+                    if (instDefault) loadContexto(instDefault.id, anio, gradoId)
+                }
+            }
         } else {
             setAreaNombre('')
             setGradoNombre('')
@@ -211,7 +254,10 @@ export default function UnidadForm({
                 area_nombre: areaNombre,
                 duracion_semanas: formData.duracion_semanas || 4,
                 sesiones_list: sesionesNombres,
-                competencias_seleccionadas: competenciasParaIA
+                competencias_seleccionadas: competenciasParaIA,
+                // Contexto institucional — mejora la situación significativa
+                contexto_institucional: contextoInstitucional ?? undefined,
+                contexto_aula: contextoAula ?? undefined,
             })
 
             // Corregir posible reordenamiento de la IA
@@ -536,6 +582,28 @@ export default function UnidadForm({
                         <p className="text-sm text-indigo-700 mb-4 max-w-2xl mx-auto">
                             Al hacer clic, la IA relacionará los títulos de las sesiones, seleccionará las competencias correspondientes del diseño curricular nacional (MINEDU), y redactará toda la estructura pedagógica invertida en segundos.
                         </p>
+                        {/* Estado del contexto institucional */}
+                        {(() => {
+                            if (contextoInstitucional) {
+                                const lugar = contextoInstitucional.distrito || contextoInstitucional.region || contextoInstitucional.nombre_institucion
+                                return (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-medium mb-3">
+                                        <span>✓</span>
+                                        Contexto de {lugar} activo — la situación será específica a tu comunidad
+                                    </div>
+                                )
+                            }
+                            if (formData.programacion_id) {
+                                // Programación seleccionada pero sin contexto cargado → advertencia suave
+                                return (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium mb-3">
+                                        <span>⚠</span>
+                                        Sin contexto institucional — la unidad será genérica. Completa el perfil en Configuración → Mis Instituciones.
+                                    </div>
+                                )
+                            }
+                            return null
+                        })()}
                         <button
                             type="button"
                             onClick={handleGenerarConIA}
@@ -583,21 +651,37 @@ export default function UnidadForm({
                             <div>
                                 <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-3">I. Situación Significativa</h4>
                                 <div className="bg-white p-4 rounded-xl border border-emerald-100 space-y-3">
-                                    {['CONTEXTO', 'EXPLORACIÓN', 'RETO', 'PROPÓSITO'].map((label) => {
-                                        const labels = ['CONTEXTO', 'EXPLORACIÓN', 'RETO', 'PROPÓSITO']
-                                        const idx = labels.indexOf(label)
-                                        const next = labels[idx + 1]
-                                        const rex = new RegExp(`${label}[:\\s]*([\\s\\S]*?)${next ? `(?=${next})` : '$'}`, 'i')
-                                        const m = previewData.situacion_significativa?.match(rex)
-                                        const content = m ? m[1].trim() : ''
-                                        if (!content) return null
-                                        return (
+                                    {(() => {
+                                        const raw = previewData.situacion_significativa || ''
+                                        const bloques = [
+                                            { label: 'CONTEXTO', pattern: /CONTEXTO/ },
+                                            { label: 'EXPLORACIÓN', pattern: /EXPLORACI[OÓ]N/ },
+                                            { label: 'RETO', pattern: /RETO/ },
+                                            { label: 'PROPÓSITO', pattern: /PROP[OÓ]SITO/ },
+                                        ]
+                                        const parsed: { label: string; content: string }[] = []
+                                        for (let i = 0; i < bloques.length; i++) {
+                                            const current = bloques[i].pattern
+                                            const next = i + 1 < bloques.length ? bloques[i + 1].pattern : null
+                                            const rex = new RegExp(
+                                                `${current.source}[:\\s]*([\\s\\S]*?)${next ? `(?=${next.source})` : '$'}`,
+                                                'i'
+                                            )
+                                            const m = raw.match(rex)
+                                            if (m && m[1].trim()) {
+                                                parsed.push({ label: bloques[i].label, content: m[1].trim() })
+                                            }
+                                        }
+                                        if (parsed.length === 0) {
+                                            return <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{raw}</p>
+                                        }
+                                        return parsed.map(({ label, content }) => (
                                             <div key={label}>
                                                 <p className="text-xs font-bold text-emerald-700 mb-1">{label}</p>
                                                 <p className="text-sm text-slate-700 leading-relaxed">{content}</p>
                                             </div>
-                                        )
-                                    })}
+                                        ))
+                                    })()}
                                 </div>
                             </div>
 

@@ -13,6 +13,7 @@ export interface Institucion {
     ugel: string | null
     logo_url: string | null
     es_predeterminada: boolean
+    perfil_completado: boolean
     created_at: string
     updated_at: string
 }
