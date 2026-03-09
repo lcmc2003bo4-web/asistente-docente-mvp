@@ -402,7 +402,10 @@ export function InstitucionesTab() {
                 <JoinInstitutionModal
                     userId={profile.id}
                     alreadyJoinedIds={alreadyJoinedIds}
-                    onJoined={() => loadVinculadas()}
+                    onJoined={() => {
+                        setModoModal(null)
+                        refresh()
+                    }}
                     onClose={() => setModoModal(null)}
                 />
             )}
