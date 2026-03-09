@@ -38,9 +38,9 @@ export default async function DashboardLayout({
         .join('')
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
+        <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
             {/* ── Top bar ── */}
-            <header className="h-16 bg-white border-b border-slate-100 shadow-xs flex items-center px-4 sm:px-6 z-30 sticky top-0">
+            <header className="flex-none h-16 bg-white border-b border-slate-100 shadow-xs flex items-center px-4 sm:px-6 z-30 sticky top-0">
                 <div className="flex items-center justify-between w-full max-w-screen-2xl mx-auto">
                     {/* Logo */}
                     <div className="flex items-center gap-2.5">

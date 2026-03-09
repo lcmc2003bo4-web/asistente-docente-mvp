@@ -32,7 +32,7 @@ export const PLAN_LIMITS = {
         programaciones: 999,
         unidades: 999,
         sesiones: 9999,
-        ai_generations: 200,
+        ai_generations: 100,
     },
 } as const
 
@@ -121,7 +121,7 @@ export function checkAiGenerationLimit(usage: UserUsage): LimitCheckResult {
     if (usage.ai_generations_used >= usage.ai_generations_limit) {
         return {
             allowed: false,
-            reason: `Has agotado tus ${usage.ai_generations_limit} generaciones de IA este mes en el Plan Gratuito. ¡Mejora a PRO para obtener 200 generaciones mensuales!`,
+            reason: `Has agotado tus ${usage.ai_generations_limit} generaciones de IA este mes en el Plan Gratuito. ¡Mejora a PRO para obtener 100 generaciones mensuales!`,
         }
     }
     return { allowed: true }

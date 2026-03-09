@@ -12,15 +12,15 @@ const PRO_FEATURES = [
     { icon: '📋', text: 'Programaciones anuales ilimitadas' },
     { icon: '📚', text: 'Unidades didácticas ilimitadas' },
     { icon: '📝', text: 'Sesiones de aprendizaje ilimitadas' },
-    { icon: '✨', text: '200 generaciones de IA por mes' },
+    { icon: '✨', text: '100 generaciones de IA por mes' },
     { icon: '📄', text: 'Exportación PDF sin marca de agua' },
     { icon: '🎯', text: 'Soporte prioritario' },
 ]
 
 const CONTACT = {
     name: 'Franco Martinez',
-    phone: '949562736',
-    whatsapp: `https://wa.me/51949562736?text=${encodeURIComponent('Hola Franco, me interesa el Plan PRO del Asistente Normativo Docente 🎓')}`,
+    phone: '907951229',
+    whatsapp: `https://wa.me/message/U24GK2HBHD22B1`,
 }
 
 // Ícono de cerrar inline
