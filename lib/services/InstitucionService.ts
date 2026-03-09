@@ -6,7 +6,8 @@ const LOGOS_BUCKET = 'logos-instituciones'
 
 export const institucionService = {
     // ─── CRUD ──────────────────────────────────────────────────
-    async list(userId: string): Promise<Institucion[]> {
+    // ─── CRUD ──────────────────────────────────────────────────
+    async listOwn(userId: string): Promise<Institucion[]> {
         const supabase = createClient()
         const { data, error } = await supabase
             .from('instituciones')
@@ -15,6 +16,14 @@ export const institucionService = {
             .order('created_at', { ascending: true })
         if (error) throw error
         return (data || []) as Institucion[]
+    },
+
+    async listAll(userId: string): Promise<Array<Institucion | InstitucionVinculada>> {
+        const [own, joined] = await Promise.all([
+            this.listOwn(userId),
+            this.listJoined(userId)
+        ])
+        return [...own, ...joined]
     },
 
     async create(userId: string, payload: {
@@ -128,4 +137,94 @@ export const institucionService = {
         await supabase.from('users').update({ avatar_url: publicUrl }).eq('id', userId)
         return publicUrl
     },
+
+    // ─── Global Institutions (platform-managed) ─────────────────
+
+    async searchGlobal(query: string): Promise<InstitucionGlobal[]> {
+        const supabase = createClient()
+        const q = query.trim()
+        const { data, error } = await supabase
+            .from('instituciones_globales')
+            .select('*')
+            .or(`nombre.ilike.%${q}%,codigo_modular.ilike.%${q}%,ugel.ilike.%${q}%`)
+            .order('nombre', { ascending: true })
+            .limit(20)
+        if (error) throw error
+        return (data || []) as InstitucionGlobal[]
+    },
+
+    async listJoined(userId: string): Promise<InstitucionVinculada[]> {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('docente_institucion')
+            .select(`
+                id,
+                es_predeterminada,
+                created_at,
+                instituciones_globales (
+                    id, nombre, codigo_modular, direccion, ugel, logo_url
+                )
+            `)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: true })
+        if (error) throw error
+        return ((data || []).map((row: any) => ({
+            joinId: row.id,
+            es_predeterminada: row.es_predeterminada,
+            ...row.instituciones_globales,
+        }))) as InstitucionVinculada[]
+    },
+
+    async joinGlobal(userId: string, globalId: string, esDefault: boolean): Promise<void> {
+        const supabase = createClient()
+        if (esDefault) {
+            // Clear existing defaults on both tables
+            await supabase.from('docente_institucion')
+                .update({ es_predeterminada: false }).eq('user_id', userId)
+            await supabase.from('instituciones')
+                .update({ es_predeterminada: false }).eq('user_id', userId)
+        }
+        const { error } = await supabase.from('docente_institucion')
+            .upsert({ user_id: userId, institucion_global_id: globalId, es_predeterminada: esDefault })
+        if (error) throw error
+    },
+
+    async leaveGlobal(userId: string, globalId: string): Promise<void> {
+        const supabase = createClient()
+        const { error } = await supabase.from('docente_institucion')
+            .delete()
+            .eq('user_id', userId)
+            .eq('institucion_global_id', globalId)
+        if (error) throw error
+    },
+
+    async setGlobalDefault(userId: string, globalId: string): Promise<void> {
+        const supabase = createClient()
+        // Clear all
+        await supabase.from('docente_institucion').update({ es_predeterminada: false }).eq('user_id', userId)
+        await supabase.from('instituciones').update({ es_predeterminada: false }).eq('user_id', userId)
+        // Set this one
+        await supabase.from('docente_institucion')
+            .update({ es_predeterminada: true })
+            .eq('user_id', userId)
+            .eq('institucion_global_id', globalId)
+    },
+}
+
+// ─── Types for global institutions ─────────────────────────────
+export interface InstitucionGlobal {
+    id: string
+    nombre: string
+    codigo_modular: string | null
+    direccion: string | null
+    ugel: string | null
+    logo_url: string | null
+    created_at: string
+}
+
+export interface InstitucionVinculada extends InstitucionGlobal {
+    joinId: string
+    es_predeterminada: boolean
+    // discriminator
+    es_administrada: true
 }

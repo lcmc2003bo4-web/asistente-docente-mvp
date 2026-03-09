@@ -9,6 +9,7 @@ import { generarUnidadAprendizaje, UnidadIAResult } from '@/lib/services/AIServi
 import { getUserUsage, checkAiGenerationLimit, incrementAiGeneration } from '@/lib/services/UsageService'
 import UpgradeModal from '@/components/ui/UpgradeModal'
 import { useContextoInstitucional } from '@/hooks/useContextoInstitucional'
+import { institucionService } from '@/lib/services/InstitucionService'
 
 type Programacion = Database['public']['Tables']['programaciones']['Row']
 
@@ -112,14 +113,10 @@ export default function UnidadForm({
                         if (instId) {
                             loadContexto(instId, anio, gradoId)
                         } else {
-                            // Fallback: programación sin institución vinculada → usar la predeterminada del usuario
-                            const { data: instDefault } = await supabase
-                                .from('instituciones')
-                                .select('id')
-                                .eq('user_id', user.id)
-                                .eq('es_predeterminada', true)
-                                .single()
-                            if (instDefault) loadContexto(instDefault.id, anio, gradoId)
+                            // Fallback: programación sin institución vinculada → usar la predeterminada del usuario (propios o globales)
+                            const all = await institucionService.listAll(user.id)
+                            const def = all.find(i => i.es_predeterminada)
+                            if (def) loadContexto(def.id, anio, gradoId)
                         }
                     }
                 }

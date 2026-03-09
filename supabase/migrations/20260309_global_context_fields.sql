@@ -1,0 +1,16 @@
+ALTER TABLE instituciones_globales
+  ADD COLUMN IF NOT EXISTS tipo_gestion TEXT DEFAULT 'Publica',
+  ADD COLUMN IF NOT EXISTS zona TEXT DEFAULT 'Urbana',
+  ADD COLUMN IF NOT EXISTS region TEXT,
+  ADD COLUMN IF NOT EXISTS distrito TEXT,
+  ADD COLUMN IF NOT EXISTS contexto_socioeconomico TEXT DEFAULT 'Medio-bajo',
+  ADD COLUMN IF NOT EXISTS actividades_economicas TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS identidad_cultural TEXT,
+  ADD COLUMN IF NOT EXISTS problematicas_locales TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS festividades_regionales TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS proyectos_comunitarios TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS mision TEXT,
+  ADD COLUMN IF NOT EXISTS vision TEXT,
+  ADD COLUMN IF NOT EXISTS valores TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS enfoque_religioso TEXT,
+  ADD COLUMN IF NOT EXISTS perfil_completado BOOLEAN DEFAULT false;

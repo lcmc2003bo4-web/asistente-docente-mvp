@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { UserPreferencias } from '@/types/database.types'
+import { institucionService, type InstitucionVinculada } from '@/lib/services/InstitucionService'
 
 export interface Institucion {
     id: string
@@ -18,6 +19,8 @@ export interface Institucion {
     updated_at: string
 }
 
+export type AnyInstitucion = Institucion | InstitucionVinculada
+
 export interface UserProfile {
     id: string
     nombre_completo: string
@@ -28,8 +31,8 @@ export interface UserProfile {
     avatar_url: string | null
     preferencias: UserPreferencias
     email: string | null
-    instituciones: Institucion[]
-    institucionPredeterminada: Institucion | null
+    instituciones: AnyInstitucion[]
+    institucionPredeterminada: AnyInstitucion | null
 }
 
 const DEFAULT_PREFS: UserPreferencias = {
@@ -55,12 +58,11 @@ export function useUserProfile() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) { setLoading(false); return }
 
-            const [userRes, institucioRes] = await Promise.all([
+            const [userRes, allInstituciones] = await Promise.all([
                 supabase.from('users').select('*').eq('id', user.id).single(),
-                supabase.from('instituciones').select('*').eq('user_id', user.id).order('created_at', { ascending: true })
+                institucionService.listAll(user.id)
             ])
 
-            const instituciones: Institucion[] = (institucioRes.data || []) as Institucion[]
             const built: UserProfile = {
                 id: user.id,
                 nombre_completo: (userRes.data as any)?.nombre_completo || '',
@@ -71,8 +73,8 @@ export function useUserProfile() {
                 avatar_url: (userRes.data as any)?.avatar_url || null,
                 preferencias: { ...DEFAULT_PREFS, ...((userRes.data as any)?.preferencias || {}) },
                 email: user.email || null,
-                instituciones,
-                institucionPredeterminada: instituciones.find(i => i.es_predeterminada) || null,
+                instituciones: allInstituciones,
+                institucionPredeterminada: allInstituciones.find(i => i.es_predeterminada) || null,
             }
             cachedProfile = built
             setProfile(built)
@@ -81,10 +83,10 @@ export function useUserProfile() {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [supabase])
 
     useEffect(() => {
-        if (!cachedProfile) loadProfile()
+        loadProfile()
         const refresh = () => loadProfile()
         listeners.push(refresh)
         return () => { const i = listeners.indexOf(refresh); if (i > -1) listeners.splice(i, 1) }

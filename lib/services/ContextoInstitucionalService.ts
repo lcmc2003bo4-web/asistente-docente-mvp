@@ -7,52 +7,63 @@ export const contextoInstitucionalService = {
     // ─── Perfil Institucional ───────────────────────────────────────────────
     async getPerfilCompleto(institucionId: string): Promise<ContextoInstitucionalPayload | null> {
         const supabase = createClient()
-        const { data, error } = await supabase
+
+        let rawData: any = null
+
+        // 1. Try teacher-owned institutions table first
+        const { data: ownData } = await supabase
             .from('instituciones')
             .select(`
-        nombre,
-        tipo_gestion,
-        zona,
-        region,
-        distrito,
-        mision,
-        vision,
-        valores,
-        enfoque_religioso,
-        contexto_socioeconomico,
-        actividades_economicas,
-        identidad_cultural,
-        problematicas_locales,
-        festividades_regionales,
-        proyectos_comunitarios,
-        perfil_completado
-      `)
+                nombre, tipo_gestion, zona, region, distrito, mision, vision, valores,
+                enfoque_religioso, contexto_socioeconomico, actividades_economicas,
+                identidad_cultural, problematicas_locales, festividades_regionales,
+                proyectos_comunitarios, perfil_completado
+            `)
             .eq('id', institucionId)
-            .single()
+            .maybeSingle()
 
-        if (error || !data) return null
+        if (ownData) {
+            rawData = ownData
+        } else {
+            // 2. If not found, try platform-managed global institutions
+            const { data: globalData } = await supabase
+                .from('instituciones_globales')
+                .select(`
+                    nombre, tipo_gestion, zona, region, distrito, mision, vision, valores,
+                    enfoque_religioso, contexto_socioeconomico, actividades_economicas,
+                    identidad_cultural, problematicas_locales, festividades_regionales,
+                    proyectos_comunitarios, perfil_completado
+                `)
+                .eq('id', institucionId)
+                .maybeSingle()
 
-        // Devolver el contexto si hay datos suficientes,
-        // independientemente del flag perfil_completado (que solo controla la UI).
-        const hayDatos = !!(data.region || (data.actividades_economicas?.length ?? 0) > 0 || data.identidad_cultural)
+            if (globalData) {
+                rawData = globalData
+            }
+        }
+
+        if (!rawData) return null
+
+        // Devolver el contexto si hay datos suficientes
+        const hayDatos = !!(rawData.region || (rawData.actividades_economicas?.length ?? 0) > 0 || rawData.identidad_cultural)
         if (!hayDatos) return null
 
         return {
-            nombre_institucion: data.nombre,
-            tipo_gestion: (data.tipo_gestion as any) ?? 'Pública',
-            zona: (data.zona as any) ?? 'Urbana',
-            region: data.region ?? '',
-            distrito: data.distrito ?? '',
-            contexto_socioeconomico: (data.contexto_socioeconomico as any) ?? 'Medio-bajo',
-            actividades_economicas: data.actividades_economicas ?? [],
-            identidad_cultural: data.identidad_cultural,
-            problematicas_locales: data.problematicas_locales ?? [],
-            festividades_regionales: data.festividades_regionales ?? [],
-            proyectos_comunitarios: data.proyectos_comunitarios ?? [],
-            mision: data.mision,
-            vision: data.vision,
-            valores: data.valores ?? [],
-            enfoque_religioso: data.enfoque_religioso,
+            nombre_institucion: rawData.nombre,
+            tipo_gestion: (rawData.tipo_gestion as any) ?? 'Pública',
+            zona: (rawData.zona as any) ?? 'Urbana',
+            region: rawData.region ?? '',
+            distrito: rawData.distrito ?? '',
+            contexto_socioeconomico: (rawData.contexto_socioeconomico as any) ?? 'Medio-bajo',
+            actividades_economicas: rawData.actividades_economicas ?? [],
+            identidad_cultural: rawData.identidad_cultural,
+            problematicas_locales: rawData.problematicas_locales ?? [],
+            festividades_regionales: rawData.festividades_regionales ?? [],
+            proyectos_comunitarios: rawData.proyectos_comunitarios ?? [],
+            mision: rawData.mision,
+            vision: rawData.vision,
+            valores: rawData.valores ?? [],
+            enfoque_religioso: rawData.enfoque_religioso,
         }
     },
 
