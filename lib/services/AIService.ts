@@ -75,7 +75,7 @@ export type UnidadIAResult = {
     }[]
     secuencia_sesiones: {
         titulo: string
-        desempeno_precisado: string
+        desempenos: string
         experiencia_aprendizaje: string
     }[]
 }
@@ -106,7 +106,7 @@ export type DistribucionResult = {
 export async function generarSecuenciaSesion(params: {
     // Contexto Sesion
     titulo_sesion: string
-    desempeno_precisado?: string
+    desempenos?: string
     experiencia_aprendizaje?: string
 
     // Contexto Unidad (Herencia)

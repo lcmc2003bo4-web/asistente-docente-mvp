@@ -63,7 +63,7 @@ export default function UnidadForm({
     const [areaId, setAreaId] = useState<string | null>(null)
 
     // Competencias
-    const [competenciasDisponibles, setCompetenciasDisponibles] = useState<Array<{ id: string; codigo: string; nombre: string; descripcion?: string }>>([]
+    const [competenciasDisponibles, setCompetenciasDisponibles] = useState<Array<{ id: string; codigo: string; nombre: string; descripcion?: string; isTransversal?: boolean }>>([]
     )
     const [selectedCompetenciaIds, setSelectedCompetenciaIds] = useState<string[]>([])
     const [loadingCompetencias, setLoadingCompetencias] = useState(false)
@@ -88,7 +88,7 @@ export default function UnidadForm({
 
             const { data } = await supabase
                 .from('programaciones')
-                .select('*, areas(nombre), grados(nombre, nivel, id), institucion_id, anio_escolar')
+                .select('*, areas(nombre), grados(nombre, nivel, id, ciclo), institucion_id, anio_escolar')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
 
@@ -102,8 +102,10 @@ export default function UnidadForm({
                         setAreaNombre((prog as any).areas?.nombre || '')
                         setGradoNombre((prog as any).grados?.nombre || '')
                         const aid = (prog as any).area_id
+                        const gid = (prog as any).grados?.id
                         setAreaId(aid)
-                        if (aid) loadCompetencias(aid)
+                        if (aid) loadCompetencias(aid, gid)
+
 
                         // Cargar contexto institucional para la programación pre-seleccionada
                         const instId = (prog as any).institucion_id
@@ -126,14 +128,65 @@ export default function UnidadForm({
         loadProgramaciones()
     }, [programacionId, router, supabase, loadContexto])
 
-    const loadCompetencias = async (aid: string) => {
+
+    const loadCompetencias = async (aid: string, gradoId?: string) => {
         setLoadingCompetencias(true)
-        const { data } = await supabase
-            .from('competencias')
-            .select('id, codigo, nombre, descripcion')
-            .eq('area_id', aid)
-            .order('codigo')
-        setCompetenciasDisponibles((data as any) || [])
+        
+        let areaData: any[] = []
+        
+        if (gradoId) {
+            const { data } = await supabase
+                .from('competencias')
+                .select(`
+                    id, codigo, nombre, descripcion,
+                    capacidades!inner(
+                        desempenos!inner(id)
+                    )
+                `)
+                .eq('area_id', aid)
+                .eq('capacidades.desempenos.grado_id', gradoId)
+                
+            if (data) {
+                // Deduplicate and sort
+                const unique = Array.from(new Map((data as any[]).map(item => [item.id, item])).values());
+                unique.sort((a: any, b: any) => (a.codigo || '').localeCompare(b.codigo || ''));
+                areaData = unique;
+            }
+        } else {
+            const { data } = await supabase
+                .from('competencias')
+                .select('id, codigo, nombre, descripcion')
+                .eq('area_id', aid)
+                .order('codigo')
+            areaData = data || []
+        }
+            
+        const { data: transArea } = await supabase
+            .from('areas')
+            .select('id')
+            .eq('nombre', 'Competencias Transversales')
+            .single()
+            
+        let transData: any[] = []
+        if (transArea) {
+            const { data } = await supabase
+                .from('competencias')
+                .select('id, codigo, nombre, descripcion')
+                .eq('area_id', transArea.id)
+                .order('codigo')
+            transData = data || []
+        }
+        
+        const formattedArea = areaData.map((c: any) => ({ 
+            id: c.id, 
+            codigo: c.codigo, 
+            nombre: c.nombre, 
+            descripcion: c.descripcion, 
+            isTransversal: false 
+        }))
+        const formattedTrans = transData.map((c: any) => ({ ...c, isTransversal: true }))
+        
+        setCompetenciasDisponibles([...formattedArea, ...formattedTrans] as any)
         setLoadingCompetencias(false)
     }
 
@@ -143,8 +196,10 @@ export default function UnidadForm({
             setAreaNombre((selectedProg as any).areas?.nombre || '')
             setGradoNombre((selectedProg as any).grados?.nombre || '')
             const aid = (selectedProg as any).area_id
+            const gid = (selectedProg as any).grados?.id
             setAreaId(aid)
-            if (aid) loadCompetencias(aid)
+            if (aid) loadCompetencias(aid, gid)
+
 
             // Cargar contexto institucional
             const instId = (selectedProg as any).institucion_id
@@ -274,7 +329,7 @@ export default function UnidadForm({
 
                 return match ? { ...match, titulo: originalTitle } : {
                     titulo: originalTitle,
-                    desempeno_precisado: 'Desempeño inferido por contexto original.',
+                    desempenos: 'Desempeño inferido por contexto original.',
                     experiencia_aprendizaje: 'Actividades sugeridas para el tema indicado.'
                 }
             })
@@ -473,7 +528,7 @@ export default function UnidadForm({
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-3">
-                            {competenciasDisponibles.map((comp) => {
+                            {competenciasDisponibles.filter(c => !c.isTransversal).map((comp) => {
                                 const isSelected = selectedCompetenciaIds.includes(comp.id)
                                 return (
                                     <button
@@ -514,6 +569,48 @@ export default function UnidadForm({
                                     </button>
                                 )
                             })}
+
+                            {competenciasDisponibles.filter(c => c.isTransversal).length > 0 && (
+                                <>
+                                    <h4 className="text-md font-semibold text-gray-800 mt-4 mb-2">Competencias Transversales (Opcionales)</h4>
+                                    {competenciasDisponibles.filter(c => c.isTransversal).map((comp) => {
+                                        const isSelected = selectedCompetenciaIds.includes(comp.id)
+                                        return (
+                                            <button
+                                                key={comp.id}
+                                                type="button"
+                                                onClick={() => !previewData && toggleCompetencia(comp.id)}
+                                                disabled={!!previewData}
+                                                className={`flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all ${isSelected
+                                                    ? 'border-emerald-500 bg-emerald-50'
+                                                    : 'border-gray-200 hover:border-emerald-200 hover:bg-gray-50'
+                                                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                            >
+                                                <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-600 border-emerald-600' : 'border-gray-300'
+                                                    }`}>
+                                                    {isSelected && (
+                                                        <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                                            <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded ${isSelected ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'
+                                                            }`}>
+                                                            {comp.codigo}
+                                                        </span>
+                                                        <span className={`text-sm font-semibold ${isSelected ? 'text-emerald-900' : 'text-gray-800'
+                                                            }`}>
+                                                            {comp.nombre}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        )
+                                    })}
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -546,7 +643,7 @@ export default function UnidadForm({
                                     }}
                                     disabled={!!previewData}
                                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                                    placeholder="..."
+                                    placeholder="Ej: Fracciones en la vida cotidiana..."
                                 />
                                 <button
                                     type="button"
@@ -559,6 +656,7 @@ export default function UnidadForm({
                             </div>
                         ))}
                     </div>
+
 
                     {!previewData && (
                         <button
@@ -759,7 +857,7 @@ export default function UnidadForm({
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-bold text-slate-900 text-sm mb-1">{s.titulo}</p>
-                                                <p className="text-xs text-slate-600 mb-1"><span className="font-semibold text-slate-700">Desempeño: </span>{s.desempeno_precisado}</p>
+                                                <p className="text-xs text-slate-600 mb-1"><span className="font-semibold text-slate-700">Desempeño: </span>{s.desempenos}</p>
                                                 <p className="text-xs text-slate-500"><span className="font-semibold text-slate-600">Experiencia: </span>{s.experiencia_aprendizaje}</p>
                                             </div>
                                         </div>

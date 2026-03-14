@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { sesionService, type SesionWithRelations, type ValidationResult } from '@/lib/services/SesionService'
 import DownloadPdfButton from '@/components/pdf/DownloadPdfButton'
 import SesionPreviewTables from '@/components/sesiones/SesionPreviewTables'
+import type { SecuenciaResult } from '@/lib/services/AIService'
 
 // ── Íconos SVG (sin emojis) ───────────────────────────────────────────
 const TargetIcon = () => (
@@ -345,7 +346,7 @@ export default function SesionDetailPage() {
 
             {/* ── Contenido principal — ANCHO COMPLETO ── */}
             {sesion.contenido_ia ? (
-                <SesionPreviewTables data={sesion.contenido_ia} />
+                <SesionPreviewTables data={sesion.contenido_ia as unknown as SecuenciaResult} />
             ) : (
                 <>
                     {/* CTA: sin secuencia */}

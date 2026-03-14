@@ -496,10 +496,10 @@ Deno.serve(async (req: Request) => {
           type: "OBJECT",
           properties: {
             titulo: { type: "STRING" },
-            desempeno_precisado: { type: "STRING" },
+            desempenos: { type: "STRING" },
             experiencia_aprendizaje: { type: "STRING" }
           },
-          required: ["titulo", "desempeno_precisado", "experiencia_aprendizaje"]
+          required: ["titulo", "desempenos", "experiencia_aprendizaje"]
         }
       }
     };

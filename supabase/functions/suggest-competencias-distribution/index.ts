@@ -66,16 +66,34 @@ serve(async (req) => {
             .eq('id', grado_id)
             .single()
 
-        // Obtener competencias del área
+        // Paso 1: Obtener qué competencias tienen desempeños para este grado
+        const { data: caps } = await supabase
+            .from('desempenos')
+            .select('capacidades!inner(competencia_id)')
+            .eq('grado_id', grado_id)
+
+        const competenciaIdsReq = [...new Set(
+            (caps || []).map((d: any) => d.capacidades?.competencia_id).filter(Boolean)
+        )] as string[]
+
+        if (competenciaIdsReq.length === 0) {
+            return new Response(
+                JSON.stringify({ error: 'No se encontraron competencias con desempeños para este grado' }),
+                { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+        }
+
+        // Paso 2: Obtener competencias del área que aplican al grado
         const { data: competencias } = await supabase
             .from('competencias')
             .select('id, nombre')
             .eq('area_id', area_id)
+            .in('id', competenciaIdsReq)
             .order('nombre')
 
         if (!competencias || competencias.length === 0) {
             return new Response(
-                JSON.stringify({ error: 'No se encontraron competencias para esta área' }),
+                JSON.stringify({ error: 'No se encontraron competencias para esta área y grado' }),
                 { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }

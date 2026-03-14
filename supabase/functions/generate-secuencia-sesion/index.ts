@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
     const {
       // Contexto Sesion
       titulo_sesion,
-      desempeno_precisado,
+      desempenos,
       experiencia_aprendizaje,
 
       // Contexto Unidad (Herencia)
@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
     if (!geminiKey) {
       console.log('No GEMINI_API_KEY found, using template fallback')
       const fallback = generarSecuenciaFallback({
-        titulo_sesion, proposito_aprendizaje: desempeno_precisado || titulo_sesion, desempenos: [desempeno_precisado],
+        titulo_sesion, proposito_aprendizaje: desempenos || titulo_sesion, desempenos: [desempenos || ''],
         area_nombre, grado_nombre, nivel, duracion_minutos
       })
       return new Response(JSON.stringify(fallback), {
@@ -198,7 +198,7 @@ La estructura final debe respetar la distribución lógica de esas plantillas: A
 - Situación Significativa: "${situacion_significativa || 'No provista'}"
 - Duración: ${duracion_minutos} minutos
 - Competencia y Capacidades heredadas: ${matriz_ia?.competencia || 'No provista'} / ${Array.isArray(matriz_ia?.capacidades) ? matriz_ia.capacidades.join(', ') : 'No provistas'}
-- Desempeño a trabajar: "${desempeno_precisado || 'Deducir del título'}"
+- Desempeños a trabajar: "${desempenos || 'Deducir del título'}"
 - Enfoques Transversales heredados: ${Array.isArray(enfoques_transversales) ? JSON.stringify(enfoques_transversales) : 'No provistos'}
 - Recursos extra: "${recursos_extra}"
 - Contexto extra: "${contexto_extra}"

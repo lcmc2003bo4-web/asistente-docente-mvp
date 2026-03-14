@@ -57,8 +57,8 @@ export default function NuevaUnidadPage() {
                     unidad_id: unidad.id,
                     user_id: user.id,
                     estado: 'Borrador',
-                    // En sesión generada IA: "desempeno_precisado" es el Desempeño y "experiencia_aprendizaje" la Experiencia
-                    proposito_aprendizaje: ses.desempeno_precisado || null,
+                    // En sesión generada IA: "desempenos" es el Desempeño y "experiencia_aprendizaje" la Experiencia
+                    proposito_aprendizaje: ses.desempenos || null,
                     evidencias_aprendizaje: ses.experiencia_aprendizaje || null
                 }))
                 await sesionService.createMany(sesionesToInsert as any)

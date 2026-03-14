@@ -168,7 +168,7 @@ export default function EditarSesionPage() {
 
             const result = await generarSecuenciaSesion({
                 titulo_sesion: initialData.titulo,
-                desempeno_precisado: finalDesempeno,
+                desempenos: finalDesempeno,
                 experiencia_aprendizaje: initialData?.evidencias_aprendizaje || '',
                 unidad_titulo: unidad?.titulo || 'Desconocida',
                 situacion_significativa: unidad?.situacion_significativa,

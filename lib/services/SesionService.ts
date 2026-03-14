@@ -25,7 +25,6 @@ export interface SesionWithRelations extends Sesion {
         }
     }>
     secuencias_sesion?: Secuencia[]
-    contenido_ia?: any
 }
 
 export interface ValidationResult {

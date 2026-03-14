@@ -68,6 +68,7 @@ export interface DesempenoDisponible {
     }>
 }
 
+
 export class UnidadService {
     private supabase = createClient()
 
@@ -273,6 +274,7 @@ export class UnidadService {
 
         return result
     }
+
 }
 
 // Singleton export

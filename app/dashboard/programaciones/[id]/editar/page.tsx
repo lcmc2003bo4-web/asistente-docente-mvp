@@ -52,12 +52,12 @@ export default function EditarProgramacionPage() {
     }, [id])
 
     useEffect(() => {
-        if (formData.area_id) {
-            loadCompetencias(formData.area_id)
+        if (formData.area_id && formData.grado_id) {
+            loadCompetencias(formData.area_id, formData.grado_id)
         } else {
             setCompetencias([])
         }
-    }, [formData.area_id])
+    }, [formData.area_id, formData.grado_id])
 
     const loadInitialData = async () => {
         try {
@@ -105,12 +105,30 @@ export default function EditarProgramacionPage() {
         }
     }
 
-    const loadCompetencias = async (areaId: string) => {
+    const loadCompetencias = async (areaId: string, gradoId: string) => {
+        // Step 1: Find which competencias have desempeños for this specific grado
+        const { data: caps } = await supabase
+            .from('desempenos')
+            .select('capacidades!inner(competencia_id)')
+            .eq('grado_id', gradoId)
+
+        const competenciaIds = [...new Set(
+            (caps || []).map((d: any) => d.capacidades?.competencia_id).filter(Boolean)
+        )] as string[]
+
+        if (competenciaIds.length === 0) {
+            setCompetencias([])
+            return
+        }
+
+        // Step 2: Fetch competencias that belong to this area AND have desempeños for the grado
         const { data } = await supabase
             .from('competencias')
             .select('id, codigo, nombre')
             .eq('area_id', areaId)
+            .in('id', competenciaIds)
             .order('codigo')
+
         if (data) {
             setCompetencias(data)
         }
