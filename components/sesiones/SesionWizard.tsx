@@ -254,7 +254,7 @@ export default function SesionWizard({
 
             const result = await generarSecuenciaSesion({
                 titulo_sesion: formData.titulo,
-                desempeno_precisado: finalDesempeno,
+                desempenos: finalDesempeno,
                 experiencia_aprendizaje: initialData?.evidencias_aprendizaje || '',
                 unidad_titulo: selectedUnidad?.titulo || 'Desconocida',
                 situacion_significativa: selectedUnidad?.situacion_significativa,
@@ -483,6 +483,26 @@ export default function SesionWizard({
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Propósito de la Sesión
                             </label>
+
+                            {desempenosDisponibles.length > 0 && (
+                                <div className="mb-3 space-y-2">
+                                    <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Desempeños Seleccionados en la Unidad:</span>
+                                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                        {desempenosDisponibles.map(dp => (
+                                            <button
+                                                key={dp.id}
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, proposito: prev.proposito ? `${prev.proposito}\n${dp.descripcion}` : dp.descripcion }))}
+                                                className="text-left text-sm p-3 rounded-lg border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 transition-colors text-indigo-900"
+                                            >
+                                                {dp.descripcion}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-500">Haz clic en un desempeño para agregarlo al propósito.</p>
+                                </div>
+                            )}
+
                             <textarea
                                 value={formData.proposito}
                                 onChange={(e) => setFormData({ ...formData, proposito: e.target.value })}

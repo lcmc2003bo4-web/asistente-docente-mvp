@@ -65,7 +65,7 @@ export default function ProgramacionForm({
         loadData()
     }, [])
 
-    // Cargar competencias cuando cambia el área
+    // Cargar competencias cuando cambia el área o grado
     useEffect(() => {
         async function loadCompetencias() {
             if (!formData.area_id) {
@@ -73,16 +73,46 @@ export default function ProgramacionForm({
                 return
             }
 
-            const { data } = await supabase
+            let query = supabase
                 .from('competencias')
-                .select('*')
+                .select(`
+                    id, 
+                    nombre, 
+                    descripcion, 
+                    area_id, 
+                    orden,
+                    capacidades!inner(
+                        id,
+                        desempenos!inner(id)
+                    )
+                `)
                 .eq('area_id', formData.area_id)
-                .order('nombre')
+                .order('orden')
 
-            if (data) setCompetencias(data)
+            if (formData.grado_id) {
+                query = query.eq('capacidades.desempenos.grado_id', formData.grado_id)
+            }
+
+            const { data, error } = await query
+
+            if (error) {
+                console.error("Error al cargar competencias:", error)
+                return
+            }
+
+            if (data) {
+                const uniqueCompetencias = Array.from(new Map(data.map(c => [c.id, c])).values())
+                setCompetencias(uniqueCompetencias.map(c => ({
+                    id: c.id,
+                    nombre: c.nombre,
+                    descripcion: c.descripcion,
+                    area_id: c.area_id,
+                    orden: c.orden
+                } as unknown as Competencia)))
+            }
         }
         loadCompetencias()
-    }, [formData.area_id])
+    }, [formData.area_id, formData.grado_id])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -178,7 +208,7 @@ export default function ProgramacionForm({
                         <select
                             required
                             value={formData.grado_id}
-                            onChange={(e) => setFormData({ ...formData, grado_id: e.target.value })}
+                            onChange={(e) => setFormData({ ...formData, grado_id: e.target.value, competencias_ids: [] })}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         >
                             <option value="">Seleccione un grado</option>
