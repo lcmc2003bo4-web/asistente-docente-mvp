@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation'
 import { SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/types/supabase'
-import { generarUnidadAprendizaje, UnidadIAResult } from '@/lib/services/AIService'
+import { generarUnidadAprendizaje, UnidadIAResult, ActividadSecuencia } from '@/lib/services/AIService'
 import { getUserUsage, checkAiGenerationLimit, incrementAiGeneration } from '@/lib/services/UsageService'
 import UpgradeModal from '@/components/ui/UpgradeModal'
 import { useContextoInstitucional } from '@/hooks/useContextoInstitucional'
 import { institucionService } from '@/lib/services/InstitucionService'
+import { unidadesInstitucionalesService, UnidadInstitucional } from '@/lib/services/UnidadesInstitucionalesService'
 
 type Programacion = Database['public']['Tables']['programaciones']['Row']
 
@@ -56,6 +57,19 @@ export default function UnidadForm({
         { id: '2', titulo: '' }
     ])
 
+    // Estado para colegios públicos — Paso 3: Secuencia de Actividades
+    const makeActividad = (): ActividadSecuencia => ({
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 7),
+        titulo: '',
+        campo_tematico: '',
+        desempeno_precisado: '',
+        tiempo_estimado: '90'
+    })
+    const [actividadesList, setActividadesList] = useState<ActividadSecuencia[]>([
+        makeActividad(), makeActividad()
+    ])
+
+
     const [programaciones, setProgramaciones] = useState<Programacion[]>([])
     const [loadingData, setLoadingData] = useState(true)
     const [areaNombre, setAreaNombre] = useState<string>('')
@@ -75,7 +89,10 @@ export default function UnidadForm({
     const [upgradeReason, setUpgradeReason] = useState<string | undefined>()
 
     // Contexto institucional para mejorar la generación de IA
-    const { contextoInstitucional, contextoAula, loadContexto } = useContextoInstitucional()
+    const { contextoInstitucional, contextoAula, isPrivado, tipoGestion, loadContexto } = useContextoInstitucional()
+    const [unidadesInstitucionales, setUnidadesInstitucionales] = useState<UnidadInstitucional[]>([])
+    const [usarPlanInstitucional, setUsarPlanInstitucional] = useState(false)
+    const [selectedUnidadInstitucionalId, setSelectedUnidadInstitucionalId] = useState('')
 
     // Cargar programaciones del usuario
     useEffect(() => {
@@ -114,11 +131,19 @@ export default function UnidadForm({
 
                         if (instId) {
                             loadContexto(instId, anio, gradoId)
+                            unidadesInstitucionalesService.listByInstitucionAndGrado(instId, gradoId).then(uds => {
+                                setUnidadesInstitucionales(uds)
+                                // Si la institución es privada y tiene plan, activar automáticamente
+                                // (se detectará en el render con isPrivado)
+                            })
                         } else {
                             // Fallback: programación sin institución vinculada → usar la predeterminada del usuario (propios o globales)
                             const all = await institucionService.listAll(user.id)
                             const def = all.find(i => i.es_predeterminada)
-                            if (def) loadContexto(def.id, anio, gradoId)
+                            if (def) {
+                                loadContexto(def.id, anio, gradoId)
+                                unidadesInstitucionalesService.listByInstitucionAndGrado(def.id, gradoId).then(setUnidadesInstitucionales)
+                            }
                         }
                     }
                 }
@@ -208,6 +233,7 @@ export default function UnidadForm({
 
             if (instId) {
                 loadContexto(instId, anio, gradoId)
+                unidadesInstitucionalesService.listByInstitucionAndGrado(instId, gradoId).then(setUnidadesInstitucionales)
             } else {
                 // Fallback: programación sin institución → usar la predeterminada del usuario
                 const { data: { user } } = await supabase.auth.getUser()
@@ -218,7 +244,10 @@ export default function UnidadForm({
                         .eq('user_id', user.id)
                         .eq('es_predeterminada', true)
                         .single()
-                    if (instDefault) loadContexto(instDefault.id, anio, gradoId)
+                    if (instDefault) {
+                        loadContexto(instDefault.id, anio, gradoId)
+                        unidadesInstitucionalesService.listByInstitucionAndGrado(instDefault.id, gradoId).then(setUnidadesInstitucionales)
+                    }
                 }
             }
         } else {
@@ -226,10 +255,29 @@ export default function UnidadForm({
             setGradoNombre('')
             setAreaId(null)
             setCompetenciasDisponibles([])
+            setUnidadesInstitucionales([])
         }
         setSelectedCompetenciaIds([])
         setFormData({ ...formData, programacion_id: progId })
         setPreviewData(null)
+        setUsarPlanInstitucional(false)
+        setSelectedUnidadInstitucionalId('')
+    }
+
+    const handleUnidadInstitucionalSelect = (uid: string) => {
+        setSelectedUnidadInstitucionalId(uid)
+        if (uid) {
+            const ui = unidadesInstitucionales.find(u => u.id === uid)
+            if (ui) {
+                setFormData(prev => ({ ...prev, titulo: ui.titulo }))
+                setPreviewData(null)
+            }
+        } else {
+            // Si es privado no permitimos desmarcar el plan
+            if (!isPrivado) {
+                setPreviewData(null)
+            }
+        }
     }
 
     const toggleCompetencia = (id: string) => {
@@ -250,6 +298,12 @@ export default function UnidadForm({
     const updateSesion = (id: string, titulo: string) => {
         setSesionesList(sesionesList.map(s => s.id === id ? { ...s, titulo } : s))
     }
+
+    // ─── CRUD Actividades (colegios públicos) ────────────────────────────────
+    const addActividad = () => setActividadesList(prev => [...prev, makeActividad()])
+    const removeActividad = (id: string) => setActividadesList(prev => prev.filter(a => a.id !== id))
+    const updateActividad = (id: string, field: keyof ActividadSecuencia, value: string) =>
+        setActividadesList(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a))
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -276,10 +330,31 @@ export default function UnidadForm({
             return
         }
 
-        const sesionesNombres = sesionesList.map(s => s.titulo.trim()).filter(Boolean)
-        if (sesionesNombres.length === 0) {
-            setError('Por favor ingresa al menos un tema de sesión de aprendizaje.')
-            return
+        // ── Validación bifurcada según tipo de institución ──────────────────
+        let sesionesNombres: string[] = []
+        let actividadesParaIA: ActividadSecuencia[] = []
+
+        if (!isPrivado) {
+            // Colegio PÚBLICO → valida actividades de la secuencia
+            actividadesParaIA = actividadesList.filter(
+                a => a.titulo.trim() && a.campo_tematico.trim()
+            )
+            if (actividadesParaIA.length === 0) {
+                setError('Por favor ingresa al menos una actividad con título y campo temático.')
+                return
+            }
+        } else {
+            // Colegio PRIVADO → valida temáticas de sesiones
+            sesionesNombres = sesionesList.map(s => s.titulo.trim()).filter(Boolean)
+            if (sesionesNombres.length === 0) {
+                setError('Por favor ingresa al menos un tema de sesión de aprendizaje.')
+                return
+            }
+            // Si tiene plan anual, obligar a seleccionar unidad institucional
+            if (unidadesInstitucionales.length > 0 && !selectedUnidadInstitucionalId) {
+                setError('Tu institución tiene un Plan Anual Institucional definido. Por favor selecciona la unidad del plan que corresponde a esta programación.')
+                return
+            }
         }
 
         try {
@@ -300,41 +375,56 @@ export default function UnidadForm({
                 .filter(c => selectedCompetenciaIds.includes(c.id))
                 .map(c => `${c.codigo}: ${c.nombre}`)
 
+            const getPlanInstitucionalOption = () => {
+                if (!usarPlanInstitucional || !selectedUnidadInstitucionalId) return undefined
+                const ui = unidadesInstitucionales.find(u => u.id === selectedUnidadInstitucionalId)
+                if (!ui) return undefined
+                return {
+                    situacion_significativa: ui.situacion_significativa,
+                    enfoques_transversales: ui.enfoques_transversales,
+                    actitudes: ui.actitudes
+                }
+            }
+
             const result = await generarUnidadAprendizaje({
                 titulo: formData.titulo,
                 grado_nombre: gradoNombre,
                 area_nombre: areaNombre,
                 duracion_semanas: formData.duracion_semanas || 4,
-                sesiones_list: sesionesNombres,
                 competencias_seleccionadas: competenciasParaIA,
-                // Contexto institucional — mejora la situación significativa
                 contexto_institucional: contextoInstitucional ?? undefined,
                 contexto_aula: contextoAula ?? undefined,
-            })
-
-            // Corregir posible reordenamiento de la IA
-            const orderedSecuencias = sesionesNombres.map((originalTitle, index) => {
-                const normalizedOriginal = originalTitle.toLowerCase().trim()
-
-                // Buscar coincidencia parcial
-                let match = result.secuencia_sesiones.find(
-                    (s) => s.titulo.toLowerCase().trim().includes(normalizedOriginal) ||
-                        normalizedOriginal.includes(s.titulo.toLowerCase().trim())
+                // Modo bifurcado
+                ...(isPrivado
+                    ? {
+                        sesiones_list: sesionesNombres,
+                        plan_institucional: getPlanInstitucionalOption()
+                    }
+                    : {
+                        actividades_secuencia: actividadesParaIA
+                    }
                 )
-
-                // Fallback por índice si la IA cambió totalmente el título
-                if (!match && result.secuencia_sesiones[index]) {
-                    match = result.secuencia_sesiones[index];
-                }
-
-                return match ? { ...match, titulo: originalTitle } : {
-                    titulo: originalTitle,
-                    desempenos: 'Desempeño inferido por contexto original.',
-                    experiencia_aprendizaje: 'Actividades sugeridas para el tema indicado.'
-                }
             })
 
-            result.secuencia_sesiones = orderedSecuencias;
+            // Para colegios privados: reordenar en caso de que la IA reordene sesiones
+            if (isPrivado && result.secuencia_sesiones?.length) {
+                const orderedSecuencias = sesionesNombres.map((originalTitle, index) => {
+                    const normalizedOriginal = originalTitle.toLowerCase().trim()
+                    let match = result.secuencia_sesiones.find(
+                        (s) => s.titulo.toLowerCase().trim().includes(normalizedOriginal) ||
+                            normalizedOriginal.includes(s.titulo.toLowerCase().trim())
+                    )
+                    if (!match && result.secuencia_sesiones[index]) {
+                        match = result.secuencia_sesiones[index]
+                    }
+                    return match ? { ...match, titulo: originalTitle } : {
+                        titulo: originalTitle,
+                        desempenos: 'Desempeño inferido por contexto original.',
+                        experiencia_aprendizaje: 'Actividades sugeridas para el tema indicado.'
+                    }
+                })
+                result.secuencia_sesiones = orderedSecuencias
+            }
 
             setPreviewData(result)
 
@@ -396,6 +486,98 @@ export default function UnidadForm({
                                 <p className="text-xs text-gray-500 mt-1">Programación preseleccionada</p>
                             )}
                         </div>
+
+                        {/* ── Plan Anual Institucional ── */}
+                        {unidadesInstitucionales.length > 0 && (
+                            isPrivado ? (
+                                // COLEGIO PRIVADO: el plan es obligatorio, no opcional
+                                <div className="md:col-span-2 mt-2">
+                                    <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl">
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                <span className="text-purple-700 text-base">🏛️</span>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-purple-900">Plan Anual Institucional — {tipoGestion}</h4>
+                                                <p className="text-xs text-purple-700 mt-0.5">Tu institución tiene unidades predefinidas. Selecciona la que corresponde a esta programación.</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-purple-900 mb-1.5">
+                                                Unidad del Plan Institucional <span className="text-red-500">*</span>
+                                            </label>
+                                            <select
+                                                value={selectedUnidadInstitucionalId}
+                                                onChange={(e) => handleUnidadInstitucionalSelect(e.target.value)}
+                                                disabled={!!previewData}
+                                                className="w-full px-3 py-2.5 border border-purple-300 bg-white rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-purple-50 text-sm font-medium text-gray-900"
+                                            >
+                                                <option value="">— Selecciona la unidad del plan anual —</option>
+                                                {unidadesInstitucionales.map(ui => (
+                                                    <option key={ui.id} value={ui.id}>
+                                                        Unidad {ui.orden}: {ui.titulo}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {selectedUnidadInstitucionalId && (() => {
+                                                const ui = unidadesInstitucionales.find(u => u.id === selectedUnidadInstitucionalId)
+                                                return ui?.situacion_significativa ? (
+                                                    <p className="mt-2 text-xs text-purple-700 bg-purple-100 p-2 rounded-lg line-clamp-2">
+                                                        📌 {ui.situacion_significativa}
+                                                    </p>
+                                                ) : null
+                                            })()}
+                                        </div>
+                                        {!selectedUnidadInstitucionalId && (
+                                            <p className="mt-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
+                                                ⚠️ Debes seleccionar una unidad institucional para generar con IA en un colegio privado.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                // COLEGIO PÚBLICO/OTRO: es opcional con toggle
+                                <div className="md:col-span-2 mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <h4 className="text-sm font-semibold text-indigo-900">Plan Anual Institucional</h4>
+                                            <p className="text-xs text-indigo-700">Utilizar una unidad predefinida por el colegio</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={usarPlanInstitucional}
+                                                onChange={(e) => setUsarPlanInstitucional(e.target.checked)}
+                                                disabled={!!previewData}
+                                            />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    </div>
+
+                                    {usarPlanInstitucional && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-indigo-900 mb-1">
+                                                Seleccionar Unidad del Plan Institucional *
+                                            </label>
+                                            <select
+                                                value={selectedUnidadInstitucionalId}
+                                                onChange={(e) => handleUnidadInstitucionalSelect(e.target.value)}
+                                                disabled={!!previewData}
+                                                className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-indigo-100/50"
+                                            >
+                                                <option value="">Seleccione una unidad institucional...</option>
+                                                {unidadesInstitucionales.map(ui => (
+                                                    <option key={ui.id} value={ui.id}>
+                                                        Unidad {ui.orden}: {ui.titulo}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        )}
 
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -615,60 +797,208 @@ export default function UnidadForm({
                     )}
                 </div>
 
-                {/* 3. Sesiones Constructor */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Paso 3: Temáticas de las Sesiones</h3>
-                        <div className="text-sm text-gray-500 bg-indigo-50 px-3 py-1 rounded-full">
-                            {sesionesList.length} sesiones
-                        </div>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Lista el título o tema principal que abarcará cada sesión. La Inteligencia Artificial determinará el desempeño específico, propósito y construirá la secuencia.
-                    </p>
-
-                    <div className="space-y-3 mb-4">
-                        {sesionesList.map((sesion, index) => (
-                            <div key={sesion.id} className="flex gap-2">
-                                <div className="flex-none bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center w-10 font-bold">
-                                    {index + 1}
-                                </div>
-                                <input
-                                    type="text"
-                                    required
-                                    value={sesion.titulo}
-                                    onChange={(e) => {
-                                        updateSesion(sesion.id, e.target.value)
-                                        setPreviewData(null)
-                                    }}
-                                    disabled={!!previewData}
-                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                                    placeholder="Ej: Fracciones en la vida cotidiana..."
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => removeSesion(sesion.id)}
-                                    disabled={sesionesList.length <= 1 || !!previewData}
-                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                                >
-                                    <TrashIcon className="h-5 w-5" />
-                                </button>
+                {/* 3. Paso 3 — bifurcado según tipo de institución */}
+                {isPrivado ? (
+                    /* ── PRIVADO: Temáticas de las Sesiones (sin cambios) ── */
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900">Paso 3: Temáticas de las Sesiones</h3>
+                            <div className="text-sm text-gray-500 bg-indigo-50 px-3 py-1 rounded-full">
+                                {sesionesList.length} sesiones
                             </div>
-                        ))}
+                        </div>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Lista el título o tema principal que abarcará cada sesión. La Inteligencia Artificial determinará el desempeño específico, propósito y construirá la secuencia.
+                        </p>
+                        <div className="space-y-3 mb-4">
+                            {sesionesList.map((sesion, index) => (
+                                <div key={sesion.id} className="flex gap-2">
+                                    <div className="flex-none bg-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center w-10 font-bold">
+                                        {index + 1}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={sesion.titulo}
+                                        onChange={(e) => { updateSesion(sesion.id, e.target.value); setPreviewData(null) }}
+                                        disabled={!!previewData}
+                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
+                                        placeholder="Ej: Fracciones en la vida cotidiana..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeSesion(sesion.id)}
+                                        disabled={sesionesList.length <= 1 || !!previewData}
+                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                                    >
+                                        <TrashIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        {!previewData && (
+                            <button type="button" onClick={addSesion}
+                                className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700">
+                                <PlusIcon className="h-4 w-4 mr-1" /> Añadir sesión
+                            </button>
+                        )}
                     </div>
+                ) : (
+                    /* ── PÚBLICO: Secuencia de Actividades ── */
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">Paso 3: Secuencia de Actividades</h3>
+                            <div className="text-sm text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full font-medium">
+                                {actividadesList.length} {actividadesList.length === 1 ? 'actividad' : 'actividades'}
+                            </div>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-5">
+                            Define las actividades que estructuran esta unidad. La IA generará o perfeccionará el desempeño precisado de cada una según el contexto institucional.
+                        </p>
 
+                        <div className="space-y-4 mb-4">
+                            {actividadesList.map((act, index) => (
+                                <div key={act.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                                    {/* Header de la actividad */}
+                                    <div className="flex items-center justify-between bg-emerald-50 px-4 py-2.5 border-b border-gray-200">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                                {index + 1}
+                                            </span>
+                                            <span className="text-sm font-semibold text-emerald-900">
+                                                Actividad {index + 1}
+                                                {act.titulo && <span className="text-emerald-600 font-normal ml-1">— {act.titulo}</span>}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { removeActividad(act.id); setPreviewData(null) }}
+                                            disabled={actividadesList.length <= 1 || !!previewData}
+                                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-40 transition-colors"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
 
-                    {!previewData && (
-                        <button
-                            type="button"
-                            onClick={addSesion}
-                            className="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700"
-                        >
-                            <PlusIcon className="h-4 w-4 mr-1" />
-                            Añadir sesión
-                        </button>
-                    )}
-                </div>
+                                    {/* Campos de la actividad */}
+                                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {/* Título */}
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                                Título de la actividad <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={act.titulo}
+                                                onChange={(e) => { updateActividad(act.id, 'titulo', e.target.value); setPreviewData(null) }}
+                                                disabled={!!previewData}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100"
+                                                placeholder="Ej: Identificamos problemas ambientales en nuestra comunidad"
+                                            />
+                                        </div>
+
+                                        {/* Campo temático */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                                Campo temático <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={act.campo_tematico}
+                                                onChange={(e) => { updateActividad(act.id, 'campo_tematico', e.target.value); setPreviewData(null) }}
+                                                disabled={!!previewData}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100"
+                                                placeholder="Ej: Ecosistemas y biodiversidad"
+                                            />
+                                        </div>
+
+                                        {/* Tiempo estimado */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                                Tiempo estimado (minutos) <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="15"
+                                                max="480"
+                                                value={act.tiempo_estimado}
+                                                onChange={(e) => { updateActividad(act.id, 'tiempo_estimado', e.target.value); setPreviewData(null) }}
+                                                disabled={!!previewData}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100"
+                                            />
+                                        </div>
+
+                                        {/* Desempeño precisado (opcional) */}
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                                Desempeño precisado{' '}
+                                                <span className="text-gray-400 font-normal">(opcional — la IA lo generará si lo dejas vacío)</span>
+                                            </label>
+                                            <textarea
+                                                rows={2}
+                                                value={act.desempeno_precisado || ''}
+                                                onChange={(e) => { updateActividad(act.id, 'desempeno_precisado', e.target.value); setPreviewData(null) }}
+                                                disabled={!!previewData}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 resize-none"
+                                                placeholder="Ej: Describe las características de los ecosistemas locales relacionándolos con problemas ambientales..."
+                                            />
+                                            {act.desempeno_precisado?.trim() ? (
+                                                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                                                    ✓ La IA optimizará y alineará este desempeño con el contexto de la unidad
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                                                    ✦ La IA generará el desempeño basándose en el campo temático y el contexto institucional
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {!previewData && (
+                            <button type="button" onClick={addActividad}
+                                className="inline-flex items-center text-sm font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-lg transition-colors">
+                                <PlusIcon className="h-4 w-4 mr-1.5" /> Añadir actividad
+                            </button>
+                        )}
+
+                        {/* Tabla resumen de actividades */}
+                        {actividadesList.some(a => a.titulo.trim()) && (
+                            <div className="mt-6 overflow-x-auto">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2">Vista previa de la secuencia</p>
+                                <table className="w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
+                                    <thead className="bg-emerald-700 text-white">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left font-semibold">#</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Actividad</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Campo Temático</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Desempeño Precisado</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Tiempo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {actividadesList.filter(a => a.titulo.trim()).map((act, i) => (
+                                            <tr key={act.id} className={i % 2 === 0 ? 'bg-white' : 'bg-emerald-50/40'}>
+                                                <td className="px-3 py-2 font-bold text-emerald-700">{i + 1}</td>
+                                                <td className="px-3 py-2 font-medium text-gray-800">{act.titulo || '—'}</td>
+                                                <td className="px-3 py-2 text-gray-600">{act.campo_tematico || '—'}</td>
+                                                <td className="px-3 py-2 text-gray-500 italic">
+                                                    {act.desempeno_precisado?.trim()
+                                                        ? <span className="not-italic text-gray-700">{act.desempeno_precisado}</span>
+                                                        : <span className="text-amber-600">✦ IA lo generará</span>}
+                                                </td>
+                                                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{act.tiempo_estimado} min</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
 
                 {/* Botón de Generación */}
                 {!previewData && (
@@ -747,7 +1077,29 @@ export default function UnidadForm({
                                 <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-3">I. Situación Significativa</h4>
                                 <div className="bg-white p-4 rounded-xl border border-emerald-100 space-y-3">
                                     {(() => {
-                                        const raw = previewData.situacion_significativa || ''
+                                        const sitSignif = previewData.situacion_significativa || ''
+                                        if (typeof sitSignif !== 'string') {
+                                            const obj = sitSignif as any;
+                                            const labelsMap: Record<string, string> = {
+                                                'contexto': 'CONTEXTO',
+                                                'exploracion': 'EXPLORACIÓN',
+                                                'reto': 'RETO',
+                                                'proposito': 'PROPÓSITO',
+                                                'propositos': 'PROPÓSITO'
+                                            };
+                                            return Object.entries(obj).map(([k, v]) => {
+                                                if (!v) return null;
+                                                const label = labelsMap[k] || k.toUpperCase();
+                                                return (
+                                                    <div key={label}>
+                                                        <p className="text-xs font-bold text-emerald-700 mb-1">{label}</p>
+                                                        <p className="text-sm text-slate-700 leading-relaxed">{v as string}</p>
+                                                    </div>
+                                                );
+                                            }).filter(Boolean);
+                                        }
+
+                                        const raw = sitSignif
                                         const bloques = [
                                             { label: 'CONTEXTO', pattern: /CONTEXTO/ },
                                             { label: 'EXPLORACIÓN', pattern: /EXPLORACI[OÓ]N/ },
@@ -780,12 +1132,65 @@ export default function UnidadForm({
                                 </div>
                             </div>
 
-                            {/* II. Propósitos de Aprendizaje */}
+                             {/* II. Propósitos de Aprendizaje */}
                             <div>
                                 <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-3">II. Propósitos de Aprendizaje</h4>
-                                <p className="text-sm text-slate-700 bg-white p-4 rounded-xl border border-emerald-100 leading-relaxed">
+                                <p className="text-sm text-slate-700 bg-white p-4 rounded-xl border border-emerald-100 leading-relaxed mb-4">
                                     {previewData.proposito_aprendizaje}
                                 </p>
+
+                                {previewData.aprendizajes_esperados && previewData.aprendizajes_esperados.length > 0 && (
+                                    <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden mb-6">
+                                        <div className="bg-emerald-600 px-4 py-2 text-white text-[10px] font-bold uppercase tracking-wider">
+                                            Matriz de Aprendizajes Esperados (CNEB)
+                                        </div>
+                                        <table className="min-w-full text-xs">
+                                            <thead className="bg-emerald-50 text-emerald-800">
+                                                <tr className="border-b border-emerald-100">
+                                                    <th className="px-4 py-2 text-left font-bold w-[30%]">Competencia / Capacidades</th>
+                                                    <th className="px-4 py-2 text-left font-bold w-[45%] border-l border-emerald-100">Desempeños Precisados</th>
+                                                    <th className="px-4 py-2 text-left font-bold w-[25%] border-l border-emerald-100">Contenidos (Campos Temáticos)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-emerald-50">
+                                                {previewData.aprendizajes_esperados.map((ae, i) => (
+                                                    <tr key={i} className="align-top">
+                                                        <td className="px-4 py-3">
+                                                            <p className="font-bold text-emerald-900 mb-1">{ae.competencia}</p>
+                                                            <ul className="space-y-1">
+                                                                {ae.capacidades.map((cap, ci) => (
+                                                                    <li key={ci} className="text-[11px] text-emerald-700 flex gap-1.5 items-start">
+                                                                        <span className="w-1 h-1 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
+                                                                        {cap}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </td>
+                                                        <td className="px-4 py-3 border-l border-emerald-50 italic text-slate-600 leading-relaxed">
+                                                            <ul className="space-y-2">
+                                                                {ae.desempenos_precisados.map((des, di) => (
+                                                                    <li key={di} className="flex gap-1.5 items-start">
+                                                                        <span className="text-emerald-500 mt-0.5">•</span>
+                                                                        {des}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </td>
+                                                        <td className="px-4 py-3 border-l border-emerald-50 text-slate-800">
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {ae.contenidos.map((cont, coi) => (
+                                                                    <span key={coi} className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] border border-slate-200">
+                                                                        {cont}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
 
                             {/* II. Matriz CNEB — paired rows */}
@@ -846,19 +1251,91 @@ export default function UnidadForm({
                                 </div>
                             </div>
 
-                            {/* III. Secuencia de Sesiones */}
-                            <div>
-                                <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-3">III. Secuencia de Sesiones</h4>
-                                <div className="space-y-2">
+                            {/* III. Matriz de Evaluación */}
+                            {previewData.criterios_evaluacion_matriz && previewData.criterios_evaluacion_matriz.length > 0 && (
+                                <div className="mb-8">
+                                    <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-3">III. Evaluación — Matriz de Criterios</h4>
+                                    <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden">
+                                        <table className="min-w-full text-xs">
+                                            <thead className="bg-emerald-700 text-white font-bold uppercase tracking-wider">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left w-[10%]">Act.</th>
+                                                    <th className="px-4 py-3 text-left w-[30%]">Competencia</th>
+                                                    <th className="px-4 py-3 text-left w-[40%]">Criterios de Evaluación</th>
+                                                    <th className="px-4 py-3 text-left w-[20%]">Instrumento</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-emerald-50">
+                                                {previewData.criterios_evaluacion_matriz.map((crit, ci) => (
+                                                    <tr key={ci} className={ci % 2 === 0 ? 'bg-white' : 'bg-emerald-50/20'}>
+                                                        <td className="px-4 py-3 text-center font-bold text-emerald-700">SES {crit.sesion_numero}</td>
+                                                        <td className="px-4 py-3 font-medium text-slate-800">{crit.competencia}</td>
+                                                        <td className="px-4 py-3 text-slate-600 italic leading-relaxed">{crit.criterio}</td>
+                                                        <td className="px-4 py-3 text-slate-700 font-semibold">{crit.instrumento}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* IV. Secuencia de Actividades / Sesiones */}
+                            <div className="mb-8">
+                                <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-3">
+                                    {previewData.secuencia_sesiones?.[0]?.desempeno_precisado ? 'IV. Secuencia de Actividades' : 'IV. Secuencia de Sesiones'}
+                                </h4>
+                                <div className="space-y-3">
                                     {previewData.secuencia_sesiones?.map((s, index) => (
-                                        <div key={index} className="bg-white p-4 rounded-xl border border-emerald-100 flex gap-4">
-                                            <div className="bg-emerald-100 text-emerald-800 rounded-lg w-9 h-9 flex flex-shrink-0 items-center justify-center font-bold text-sm">
-                                                {index + 1}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="font-bold text-slate-900 text-sm mb-1">{s.titulo}</p>
-                                                <p className="text-xs text-slate-600 mb-1"><span className="font-semibold text-slate-700">Desempeño: </span>{s.desempenos}</p>
-                                                <p className="text-xs text-slate-500"><span className="font-semibold text-slate-600">Experiencia: </span>{s.experiencia_aprendizaje}</p>
+                                        <div key={index} className="bg-white p-5 rounded-2xl border border-emerald-100 shadow-sm hover:shadow-md transition-shadow">
+                                            <div className="flex gap-5">
+                                                <div className="flex flex-col items-center">
+                                                    <div className="bg-emerald-600 text-white rounded-xl w-10 h-10 flex flex-shrink-0 items-center justify-center font-bold text-lg shadow-lg shadow-emerald-200">
+                                                        {index + 1}
+                                                    </div>
+                                                    {s.horas && (
+                                                        <div className="mt-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                                            {s.horas}h
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <p className="font-extrabold text-slate-900 text-base leading-tight">{s.titulo}</p>
+                                                    </div>
+                                                    
+                                                    {/* Layout público: con campos precisados */}
+                                                    {s.desempeno_precisado ? (
+                                                        <div className="grid grid-cols-1 gap-3 mt-3 border-t border-emerald-50 pt-3">
+                                                            <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100/50">
+                                                                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wide mb-1">Desempeño Precisado</p>
+                                                                <p className="text-xs text-emerald-700 leading-relaxed italic">{s.desempeno_precisado}</p>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Campo Temático</p>
+                                                                    <p className="text-xs text-slate-700 font-medium">{s.campo_tematico}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Evidencia / Producto</p>
+                                                                    <p className="text-xs text-slate-700 font-medium">{s.evidencia}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        /* Layout privado: original */
+                                                        <div className="space-y-2">
+                                                            <div className="flex gap-2 items-start">
+                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">Desempeño:</span>
+                                                                <p className="text-xs text-slate-600 leading-relaxed">{s.desempenos}</p>
+                                                            </div>
+                                                            <div className="flex gap-2 items-start">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">Experiencia:</span>
+                                                                <p className="text-xs text-slate-500 leading-relaxed">{s.experiencia_aprendizaje}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}

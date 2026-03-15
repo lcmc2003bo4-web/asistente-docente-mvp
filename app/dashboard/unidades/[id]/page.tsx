@@ -404,6 +404,75 @@ export default function UnidadDetailPage({ params }: { params: Promise<{ id: str
                     </div>
                 )}
 
+                {unidad.aprendizajes_esperados && (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6" style={{ boxShadow: '0 1px 2px rgba(0,0,0,.04)' }}>
+                        <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-4">III. Aprendizajes Esperados (CNEB - P&#xFA;blico)</h4>
+                        <div className="overflow-hidden rounded-xl border border-emerald-200">
+                            <table className="min-w-full text-xs border-collapse">
+                                <thead>
+                                    <tr className="bg-emerald-700 text-white">
+                                        <th className="px-4 py-3 text-left font-bold uppercase tracking-wider w-[20%] border-r border-emerald-600">Competencia</th>
+                                        <th className="px-4 py-3 text-left font-bold uppercase tracking-wider w-[25%] border-r border-emerald-600">Capacidades</th>
+                                        <th className="px-4 py-3 text-left font-bold uppercase tracking-wider w-[35%] border-r border-emerald-600">Desempe&#xF1;os Precisados</th>
+                                        <th className="px-4 py-3 text-left font-bold uppercase tracking-wider w-[20%]">Contenidos</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(unidad.aprendizajes_esperados as any[]).map((mat: any, idx: number) => {
+                                        const caps: string[] = mat.capacidades || []
+                                        const dess: string[] = mat.desempenos_precisados || []
+                                        const conts: string[] = mat.contenidos || []
+                                        const maxRows = Math.max(caps.length, dess.length, conts.length, 1)
+                                        const bgGroup = idx % 2 === 0 ? '' : 'bg-emerald-50/40'
+                                        return (
+                                            <tr key={idx} className={`border-b-2 border-emerald-200 ${bgGroup}`}>
+                                                <td className={`px-4 py-3 font-semibold text-emerald-800 text-center align-middle border-r border-emerald-100 ${bgGroup}`}
+                                                    style={{ verticalAlign: 'middle' }}>
+                                                    {mat.competencia}
+                                                </td>
+                                                <td className="p-0 align-top border-r border-emerald-100" colSpan={3}>
+                                                    <table className="min-w-full">
+                                                        <tbody>
+                                                            {Array.from({ length: maxRows }).map((_, i) => (
+                                                                <tr key={i} className={i < maxRows - 1 ? 'border-b border-emerald-50' : ''}>
+                                                                    <td className="px-4 py-2 align-top w-[32%] border-r border-emerald-50 text-slate-700">
+                                                                        {caps[i] && (
+                                                                            <span className="flex items-start gap-1.5">
+                                                                                <span className="w-1 h-1 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                                                                                {caps[i]}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-4 py-2 align-top w-[44%] border-r border-emerald-50 text-slate-600 leading-relaxed">
+                                                                        {dess[i] && (
+                                                                            <span className="flex items-start gap-1.5">
+                                                                                <span className="w-1 h-1 rounded-full bg-slate-300 mt-1.5 flex-shrink-0" />
+                                                                                {dess[i]}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-4 py-2 align-top w-[24%] text-slate-600 leading-relaxed">
+                                                                        {conts[i] && (
+                                                                            <span className="flex items-start gap-1.5">
+                                                                                <span className="w-1 h-1 rounded-full bg-slate-300 mt-1.5 flex-shrink-0" />
+                                                                                {conts[i]}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
                 {unidad.enfoques_transversales && (
                     <div className="bg-white rounded-2xl border border-slate-200 p-6" style={{ boxShadow: '0 1px 2px rgba(0,0,0,.04)' }}>
                         <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-4">IV. Enfoques Transversales</h4>
@@ -453,6 +522,33 @@ export default function UnidadDetailPage({ params }: { params: Promise<{ id: str
                                 <p className="text-xs font-bold text-emerald-800 mb-2 uppercase tracking-wide">Instrumento</p>
                                 <p className="text-xs text-slate-600 leading-relaxed">{(unidad.evaluacion_ia as any).instrumento}</p>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {unidad.criterios_evaluacion && (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6" style={{ boxShadow: '0 1px 2px rgba(0,0,0,.04)' }}>
+                        <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-4">VI. Criterios de Evaluación por Sesión</h4>
+                        <div className="overflow-hidden rounded-xl border border-emerald-100">
+                            <table className="min-w-full divide-y divide-emerald-100 text-xs">
+                                <thead className="bg-emerald-50">
+                                    <tr>
+                                        {['Competencia', 'Sesión', 'Criterio', 'Instrumento'].map(h => (
+                                            <th key={h} className="px-4 py-2.5 text-left font-bold text-emerald-800 uppercase tracking-wider">{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-emerald-50">
+                                    {(unidad.criterios_evaluacion as any[])?.sort((a, b) => a.sesion_numero - b.sesion_numero).map((crit, idx) => (
+                                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-emerald-50/30'}>
+                                            <td className="px-4 py-3 font-medium text-emerald-700 align-top w-[25%]">{crit.competencia}</td>
+                                            <td className="px-4 py-3 text-slate-700 align-top font-semibold w-[10%]">S{crit.sesion_numero}</td>
+                                            <td className="px-4 py-3 text-slate-700 align-top leading-relaxed w-[45%]">{crit.criterio}</td>
+                                            <td className="px-4 py-3 italic text-slate-500 align-top w-[20%]">{crit.instrumento}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}
@@ -522,6 +618,12 @@ export default function UnidadDetailPage({ params }: { params: Promise<{ id: str
                                         <p className="mt-1 text-xs text-slate-600 line-clamp-2">
                                             <span className="font-medium text-indigo-700">Desempeño: </span>
                                             {sesion.proposito_aprendizaje}
+                                        </p>
+                                    )}
+                                    {sesion.evidencias_aprendizaje && (
+                                        <p className="mt-1 text-xs text-slate-500 line-clamp-2 italic">
+                                            <span className="font-medium text-slate-600">Evidencia: </span>
+                                            {sesion.evidencias_aprendizaje}
                                         </p>
                                     )}
                                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">

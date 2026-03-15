@@ -36,6 +36,14 @@ interface ContextoAula {
   caracteristicas_adicionales?: string | null;
 }
 
+interface ActividadSecuencia {
+  id: string;
+  titulo: string;
+  campo_tematico: string;
+  desempeno_precisado?: string; // opcional — si viene, la IA lo optimiza; si no, lo genera
+  tiempo_estimado: string;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CONTEXT ENGINE
 // Convierte el contexto institucional en una comprensión
@@ -66,7 +74,7 @@ function contextEngine(ctx: ContextoInstitucional, aula: ContextoAula | null, nu
 
   // Narrativa global de comprensión
   const narrativa_completa = [
-    `La institucion "${ctx.nombre_institucion}" pertenece a ${lugar}, un ${zonaDesc} de nivel socioeconomico ${ctx.contexto_socioeconomico.toLowerCase()}.`,
+    `La institucion "${ctx.nombre_institucion}" pertenece a ${lugar}, un ${zonaDesc} de nivel socioeconomico ${ctx.contexto_socioeconomico?.toLowerCase() || 'no especificado'}.`,
     actividades.length ? `La vida de las familias gira en torno a: ${actividades.join(', ')}.` : '',
     problematicas.length ? `La comunidad convive con desafios reales como: ${problematicas.join(', ')}.` : '',
     festividades.length ? `El calendario local incluye: ${festividades.join(', ')}.` : '',
@@ -413,17 +421,30 @@ Deno.serve(async (req: Request) => {
       area_nombre,
       duracion_semanas,
       sesiones_list,
+      actividades_secuencia,
       competencias_seleccionadas,
       contexto_institucional,
       contexto_aula,
+      plan_institucional,
     } = params;
 
-    if (!titulo || !grado_nombre || !area_nombre || !sesiones_list || !Array.isArray(sesiones_list) || sesiones_list.length === 0) {
+    // Detectar modo: privado (sesiones) vs público (actividades)
+    const modoActividades = Array.isArray(actividades_secuencia) && actividades_secuencia.length > 0;
+    const modoSesiones = !modoActividades && Array.isArray(sesiones_list) && sesiones_list.length > 0;
+
+    const nombreInstitucion = (contexto_institucional as any)?.nombre_institucion || 'Institución Educativa';
+
+    if (!titulo || !grado_nombre || !area_nombre || (!modoSesiones && !modoActividades)) {
       return new Response(
-        JSON.stringify({ error: 'Faltan campos obligatorios o lista de sesiones invalida' }),
+        JSON.stringify({ error: 'Faltan campos obligatorios o lista de sesiones/actividades inválida' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
+
+    // Lista de títulos para el context/memory engine (compatible con ambos modos)
+    const titulosParaContexto: string[] = modoActividades
+      ? (actividades_secuencia as ActividadSecuencia[]).map((a: ActividadSecuencia) => a.titulo)
+      : (sesiones_list as string[]);
 
     const apiKey = Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) throw new Error('GEMINI_API_KEY no esta configurada');
@@ -461,6 +482,7 @@ Deno.serve(async (req: Request) => {
       required: ["contexto", "exploracion", "reto", "proposito"]
     };
 
+    // Schema campos comunes (situacion, proposito, evaluacion, enfoques)
     const camposComunes = {
       situacion_significativa: situacionSchema,
       proposito_aprendizaje: {
@@ -490,17 +512,35 @@ Deno.serve(async (req: Request) => {
         },
         minItems: 4
       },
-      secuencia_sesiones: {
-        type: "ARRAY",
-        items: {
-          type: "OBJECT",
-          properties: {
-            titulo: { type: "STRING" },
-            desempenos: { type: "STRING" },
-            experiencia_aprendizaje: { type: "STRING" }
-          },
-          required: ["titulo", "desempenos", "experiencia_aprendizaje"]
-        }
+    };
+
+    // Schema de sesiones (modo privado)
+    const schemaSesiones = {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          titulo: { type: "STRING" },
+          desempenos: { type: "STRING" },
+          experiencia_aprendizaje: { type: "STRING" }
+        },
+        required: ["titulo", "desempenos", "experiencia_aprendizaje"]
+      }
+    };
+
+    // Schema de actividades (modo público)
+    const schemaActividades = {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          titulo: { type: "STRING" },
+          desempeno_precisado: { type: "STRING", description: "Desempeño optimizado o generado por la IA" },
+          campo_tematico: { type: "STRING" },
+          evidencia: { type: "STRING", description: "Evidencia concreta y observable" },
+          horas: { type: "INTEGER", description: "Cantidad de horas académicas, ej: 2" }
+        },
+        required: ["titulo", "desempeno_precisado", "campo_tematico", "evidencia", "horas"]
       }
     };
 
@@ -527,15 +567,51 @@ Deno.serve(async (req: Request) => {
       },
       minItems: competencias_seleccionadas?.length ?? 1
     };
+    
+    // Novedades: aprendizajes_esperados y criterios_evaluacion (Solo Publicos)
+    const schemaAprendizajesEsperados = {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          competencia: { type: "STRING" },
+          capacidades: { type: "ARRAY", items: { type: "STRING" } },
+          desempenos_precisados: { type: "ARRAY", items: { type: "STRING" } },
+          contenidos: { type: "ARRAY", items: { type: "STRING" } }
+        },
+        required: ["competencia", "capacidades", "desempenos_precisados", "contenidos"]
+      }
+    };
+    
+    const schemaCriteriosEvaluacion = {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          competencia: { type: "STRING" },
+          sesion_numero: { type: "INTEGER" },
+          criterio: { type: "STRING" },
+          instrumento: { type: "STRING" }
+        },
+        required: ["competencia", "sesion_numero", "criterio", "instrumento"]
+      }
+    };
+
+    // Campo de secuencia según el modo
+    const campoSecuencia = modoActividades
+      ? { secuencia_actividades: schemaActividades, aprendizajes_esperados: schemaAprendizajesEsperados, criterios_evaluacion_matriz: schemaCriteriosEvaluacion }
+      : { secuencia_sesiones: schemaSesiones };
+
+    const campoSecuenciaRequerido = modoActividades ? ["secuencia_actividades", "aprendizajes_esperados", "criterios_evaluacion_matriz"] : ["secuencia_sesiones"];
 
     const schema = {
       type: "OBJECT",
       properties: tieneMultiples
-        ? { ...camposComunes, matrices_ia: matrizMultiple }
-        : { ...camposComunes, matriz_ia: matrizSingle },
+        ? { ...camposComunes, ...campoSecuencia, matrices_ia: matrizMultiple }
+        : { ...camposComunes, ...campoSecuencia, matriz_ia: matrizSingle },
       required: tieneMultiples
-        ? ["situacion_significativa", "proposito_aprendizaje", "evaluacion", "enfoques_transversales", "matrices_ia", "secuencia_sesiones"]
-        : ["situacion_significativa", "proposito_aprendizaje", "evaluacion", "enfoques_transversales", "matriz_ia", "secuencia_sesiones"]
+        ? ["situacion_significativa", "proposito_aprendizaje", "evaluacion", "enfoques_transversales", "matrices_ia", ...campoSecuenciaRequerido]
+        : ["situacion_significativa", "proposito_aprendizaje", "evaluacion", "enfoques_transversales", "matriz_ia", ...campoSecuenciaRequerido]
     };
 
     const competenciasBlock = tieneCompetencias
@@ -557,20 +633,14 @@ Deno.serve(async (req: Request) => {
       const ctx = contexto_institucional as ContextoInstitucional;
       const aula = contexto_aula as ContextoAula | null;
 
-      // Context Engine: convierte el contexto en comprension narrativa distribuida
-      const distribucion = contextEngine(ctx, aula, sesiones_list.length);
+      // Context Engine: usa los títulos compatibles (sesiones o actividades)
+      const distribucion = contextEngine(ctx, aula, titulosParaContexto.length);
+      const filtro = thematicFilter(titulo, titulosParaContexto);
 
-      // Thematic Coherence Filter: analiza el titulo y filtra elementos del contexto
-      const filtro = thematicFilter(titulo, sesiones_list);
-
-      // Aplicar filtro: si el tema no permite festividades, eliminarlas del slot de situacion
-      // El slot de enfoques puede conservarlas (los enfoques transversales son mas flexibles)
       if (!filtro.permitir_festividades) {
-        // Limpiar referencias a festividades del slot_situacion
         distribucion.slot_situacion = distribucion.slot_situacion
           .replace(/Expresion cultural local disponible:[^.]+\./gi, '')
           .trim();
-        // Limpiar del pool de sesiones iniciales (apertura/exploracion)
         for (let i = 0; i < Math.min(2, distribucion.slot_sesiones.length); i++) {
           if (/cultural|festividad|celebraci/i.test(distribucion.slot_sesiones[i])) {
             distribucion.slot_sesiones[i] = `Entorno cotidiano de los estudiantes relacionado con: ${titulo}`;
@@ -589,14 +659,10 @@ Deno.serve(async (req: Request) => {
           .trim();
       }
 
-      // Variation Engine: asigna arquetipos pedagogicos por sesion
-      const arquetipos = variationEngine(sesiones_list.length, duracion);
-
-      // Memory Engine: construye el mapa de distribucion del contexto
-      const memBlockRaw = memoryEngine(distribucion, arquetipos, sesiones_list, duracion);
+      const arquetipos = variationEngine(titulosParaContexto.length, duracion);
+      const memBlockRaw = memoryEngine(distribucion, arquetipos, titulosParaContexto, duracion);
       memoryBlock = memBlockRaw;
 
-      // Bloque de comprension global (lo que la IA debe entender sobre la comunidad)
       contextBlock = `
 COMPRENSION DEL CONTEXTO INSTITUCIONAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -614,17 +680,85 @@ PRINCIPIOS DE USO DEL CONTEXTO:
 `;
     }
 
+    let planInstitucionalBlock = '';
+    if (plan_institucional) {
+      const { situacion_significativa, enfoques_transversales, actitudes } = plan_institucional;
+      
+      let enfoquesTexto = '';
+      if (enfoques_transversales && enfoques_transversales.length > 0) {
+        enfoquesTexto = `ENFOQUES TRANSVERSALES INSTITUCIONALES OBLIGATORIOS: ${JSON.stringify(enfoques_transversales)}.\n`;
+      }
+      let actitudesTexto = '';
+      if (actitudes && actitudes.length > 0) {
+        actitudesTexto = `ACTITUDES INSTITUCIONALES ESPERADAS: ${JSON.stringify(actitudes)}.\n`;
+      }
+
+      planInstitucionalBlock = `
+PLAN ANUAL INSTITUCIONAL (PRIORIDAD ABSOLUTA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+La institucion ha definido la siguiente informacion oficial para esta unidad. DEBES utilizarla como base inalterable y prioritaria:
+
+SITUACION SIGNIFICATIVA INSTITUCIONAL:
+"${situacion_significativa || 'No especificada'}"
+(Regla: Usa la premisa, el reto y el proposito de esta situacion, adaptando unicamente el contenido a las competencias del area de ${area_nombre} para el grado ${grado_nombre}).
+
+${enfoquesTexto}${actitudesTexto}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+    }
+
     // Temperatura: reducida para mayor control y evitar repeticion de contenido
-    const temperature = tieneContexto ? 0.60 : 0.55;
+    const temperature = tieneContexto || plan_institucional ? 0.60 : 0.55;
 
-    const nombreInstitucion = tieneContexto ? (contexto_institucional as ContextoInstitucional).nombre_institucion : 'la institucion';
+    // ─── Bloque de secuencia según modo ─────────────────────────────────────
+    let secuenciaBlock = '';
+    if (modoActividades) {
+      const actsBlock = (actividades_secuencia as ActividadSecuencia[]).map((a: ActividadSecuencia, i: number) => {
+        const tieneDesempeno = a.desempeno_precisado?.trim();
+        return `  Actividad ${i + 1}: "${a.titulo}"
+  Campo temático: ${a.campo_tematico}
+  Tiempo: ${a.tiempo_estimado} minutos
+  Desempeño: ${tieneDesempeno
+          ? `PROPORCIONADO POR EL DOCENTE — OPTIMIZA su redacción, mejora la precisión pedagógica y alínealo con el área:\n  "${a.desempeno_precisado}"`
+          : `NO PROPORCIONADO — GÉNERALO automáticamente basándote en: el campo temático, el área (${area_nombre}), el grado (${grado_nombre}) y el contexto de la unidad.`
+        }`;
+      }).join('\n\n');
 
-    const promptBase = `
-ROL
+      secuenciaBlock = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. SECUENCIA DE SESIONES (COLEGIO PÚBLICO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+El docente ha definido las siguientes actividades para esta unidad.
+Para cada una debes:
+  a) Usar el título y campo temático exactamente como estan.
+  b) Generar o OPTIMIZAR el desempeño precisado (ver instrucciones por actividad).
+  c) Generar una evidencia de aprendizaje concreta y observable.
+  d) Conservar el tiempo definido por el docente.
+
+ACTIVIDADES:
+${actsBlock}
+
+RESULTADO ESPERADO: devuelve 'secuencia_sesiones' con ${(actividades_secuencia as ActividadSecuencia[]).length} elementos, uno por actividad, en el mismo orden.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    } else {
+      secuenciaBlock = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. SECUENCIA DE SESIONES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sigue el mapa de distribucion: etapa, verbo guia, micro-contexto DISTINTO por cada sesion. Progresion de apertura a evidencia.
+Desempeno: unico e irrepetible por sesion. Experiencia: 2 oraciones vividas de accion estudiantil en ${grado_nombre}.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    }
+
+    const datosUnidadLine = modoActividades
+      ? `Duracion: ${duracion} semanas | ${(actividades_secuencia as ActividadSecuencia[]).length} actividades`
+      : `Duracion: ${duracion} semanas | ${(sesiones_list as string[]).length} sesiones`;
+
+    const promptBase = `ROL
 Eres un especialista de planificacion curricular MINEDU Peru (CNEB 2026) con 20 anos de experiencia en aula. Tu voz es la de un docente reflexivo y preciso. Nunca suenas como plantilla automatica.
 
 RESTRICCION: Solo nivel MACRO (Unidad de Aprendizaje). NUNCA incluyas momentos de sesion (Inicio, Desarrollo, Cierre).
 
+${planInstitucionalBlock}
 ${contextBlock}
 ${memoryBlock}
 ${competenciasBlock}
@@ -633,7 +767,7 @@ Institucion: ${nombreInstitucion}
 Grado: ${grado_nombre}
 Area: ${area_nombre}
 Titulo de la Unidad: "${titulo}"
-Duracion: ${duracion} semanas | ${sesiones_list.length} sesiones
+${datosUnidadLine}
 
 INSTRUCCIONES DE GENERACION
 
@@ -693,12 +827,9 @@ Evidencia observable de ${grado_nombre}, ligada al tema. Criterios medibles (3-5
 5. ENFOQUES TRANSVERSALES (MINIMO 4)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Nombre CNEB + valor especifico + actitud concreta que haria un estudiante real de ${grado_nombre} en ESTA unidad, en ESTE colegio.
+${planInstitucionalBlock ? `OBLIGATORIO: DEBES integrar de forma prioritaria los ENFOQUES TRANSVERSALES INSTITUCIONALES y ACTITUDES definidos en el bloque PLAN ANUAL INSTITUCIONAL.` : ''}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-6. SECUENCIA DE SESIONES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sigue el mapa de distribucion: etapa, verbo guia, micro-contexto DISTINTO por cada sesion. Progresion de apertura a evidencia.
-Desempeno: unico e irrepetible por sesion. Experiencia: 2 oraciones vividas de accion estudiantil en ${grado_nombre}.
+${secuenciaBlock}
 
 REGLAS FINALES:
 - El eje tematico "${titulo}" domina todo el documento.
@@ -757,10 +888,10 @@ ${tieneCompetencias ? `- Incluir las ${competencias_seleccionadas.length} compet
         contexto?: string; exploracion?: string; reto?: string; proposito?: string;
       };
       jsonRespuesta.situacion_significativa = [
-        ss.contexto ? `CONTEXTO\n${ss.contexto.trim()}` : '',
-        ss.exploracion ? `EXPLORACION\n${ss.exploracion.trim()}` : '',
-        ss.reto ? `RETO\n${ss.reto.trim()}` : '',
-        ss.proposito ? `PROPOSITO\n${ss.proposito.trim()}` : '',
+        ss.contexto ? `CONTEXTO:\n${ss.contexto.trim()}` : '',
+        ss.exploracion ? `EXPLORACIÓN:\n${ss.exploracion.trim()}` : '',
+        ss.reto ? `RETO:\n${ss.reto.trim()}` : '',
+        ss.proposito ? `PROPÓSITO:\n${ss.proposito.trim()}` : '',
       ].filter(Boolean).join('\n\n');
     }
 

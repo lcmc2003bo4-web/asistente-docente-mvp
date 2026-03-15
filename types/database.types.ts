@@ -330,6 +330,12 @@ export interface Database {
                     situacion_significativa: string | null
                     estado: 'Borrador' | 'Validado'
                     tiene_contexto_institucional: boolean
+                    matriz_ia: Json | null
+                    enfoques_transversales: Json | null
+                    evaluacion_ia: Json | null
+                    aprendizajes_esperados: Json | null
+                    criterios_evaluacion: Json | null
+                    secuencia_sesiones_ia: Json | null
                     created_at: string
                     updated_at: string
                 }
@@ -343,6 +349,12 @@ export interface Database {
                     situacion_significativa?: string | null
                     estado?: 'Borrador' | 'Validado'
                     tiene_contexto_institucional?: boolean
+                    matriz_ia?: Json | null
+                    enfoques_transversales?: Json | null
+                    evaluacion_ia?: Json | null
+                    aprendizajes_esperados?: Json | null
+                    criterios_evaluacion?: Json | null
+                    secuencia_sesiones_ia?: Json | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -356,6 +368,12 @@ export interface Database {
                     situacion_significativa?: string | null
                     estado?: 'Borrador' | 'Validado'
                     tiene_contexto_institucional?: boolean
+                    matriz_ia?: Json | null
+                    enfoques_transversales?: Json | null
+                    evaluacion_ia?: Json | null
+                    aprendizajes_esperados?: Json | null
+                    criterios_evaluacion?: Json | null
+                    secuencia_sesiones_ia?: Json | null
                     created_at?: string
                     updated_at?: string
                 }

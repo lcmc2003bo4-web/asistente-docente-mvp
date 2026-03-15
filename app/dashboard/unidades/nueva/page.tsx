@@ -29,15 +29,25 @@ export default function NuevaUnidadPage() {
                 throw new Error('Faltan datos generados por IA')
             }
 
+            // Manejar situacion_significativa (puede ser string u objeto)
+            const ssContent = typeof formData.ia_data.situacion_significativa === 'string'
+                ? formData.ia_data.situacion_significativa
+                : formData.ia_data.situacion_significativa ? `**Contexto:**\n${(formData.ia_data.situacion_significativa as any).contexto}\n\n**Reto:**\n${(formData.ia_data.situacion_significativa as any).reto}\n\n**Propósito:**\n${(formData.ia_data.situacion_significativa as any).proposito}` : null;
+
             // Crear unidad (los campos adicionales Json los casteamos a any para simplificar)
+            const secuenciaIA = formData.ia_data.secuencia_sesiones ?? (formData.ia_data as any).secuencia_actividades;
+
             const unidadToCreate: any = {
                 titulo: formData.titulo,
                 programacion_id: formData.programacion_id,
-                situacion_significativa: formData.ia_data.situacion_significativa,
+                situacion_significativa: ssContent,
                 proposito_aprendizaje: formData.ia_data.proposito_aprendizaje,
                 evaluacion_ia: formData.ia_data.evaluacion,
                 enfoques_transversales: formData.ia_data.enfoques_transversales,
                 matriz_ia: formData.ia_data.matrices_ia ?? formData.ia_data.matriz_ia,
+                aprendizajes_esperados: formData.ia_data.aprendizajes_esperados,
+                criterios_evaluacion: formData.ia_data.criterios_evaluacion_matriz,
+                secuencia_sesiones_ia: secuenciaIA,
                 duracion_semanas: formData.duracion_semanas,
                 orden: formData.orden,
                 fecha_inicio: formData.fecha_inicio || null,
@@ -49,17 +59,17 @@ export default function NuevaUnidadPage() {
             const unidad = await unidadService.create(unidadToCreate)
 
             // Crear sesiones basadas en la secuencia de la IA
-            if (formData.ia_data.secuencia_sesiones && formData.ia_data.secuencia_sesiones.length > 0) {
-                const sesionesToInsert = formData.ia_data.secuencia_sesiones.map((ses, idx) => ({
+            if (secuenciaIA && secuenciaIA.length > 0) {
+                const sesionesToInsert = secuenciaIA.map((ses: any, idx: number) => ({
                     titulo: ses.titulo,
                     orden: idx + 1,
                     duracion_minutos: 90, // default
                     unidad_id: unidad.id,
                     user_id: user.id,
                     estado: 'Borrador',
-                    // En sesión generada IA: "desempenos" es el Desempeño y "experiencia_aprendizaje" la Experiencia
-                    proposito_aprendizaje: ses.desempenos || null,
-                    evidencias_aprendizaje: ses.experiencia_aprendizaje || null
+                    // Mapeo flexible para campos privados vs públicos
+                    proposito_aprendizaje: ses.desempenos || ses.desempeno_precisado || null,
+                    evidencias_aprendizaje: ses.experiencia_aprendizaje || ses.evidencia || null
                 }))
                 await sesionService.createMany(sesionesToInsert as any)
             }

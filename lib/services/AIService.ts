@@ -1,5 +1,29 @@
 import { createClient } from '@/lib/supabase/client'
 
+/**
+ * Actividad para colegios públicos (input del docente)
+ * Se usa en Paso 3: Secuencia de Actividades
+ */
+export type ActividadSecuencia = {
+    id: string
+    titulo: string
+    campo_tematico: string
+    desempeno_precisado?: string // opcional: si se omite, la IA lo genera
+    tiempo_estimado: string      // ej: "90 min", "2 horas"
+}
+
+/**
+ * Resultado de una actividad procesada por la IA (output)
+ * Aparece en la tabla de la unidad generada
+ */
+export type ActividadSecuenciaIA = {
+    titulo: string
+    desempeno_precisado: string  // generado o optimizado por la IA
+    campo_tematico: string
+    evidencia_aprendizaje: string
+    tiempo: string
+}
+
 export type ActividadSesion = {
     titulo: string
     descripcion: string
@@ -49,35 +73,67 @@ export type SecuenciaResult = {
 }
 
 export type UnidadIAResult = {
-    situacion_significativa: string
+    // Para colegios públicos, la SS puede venir como objeto. En privados como string.
+    situacion_significativa: string | { contexto: string; reto: string; propositos: string }
     proposito_aprendizaje: string
     evaluacion: {
         evidencias: string
         criterios: string[]
         instrumento: string
     }
-    // Single competencia (backward compat / fallback)
+    // Backward compat
     matriz_ia?: {
         competencia: string
         capacidades: string[]
         desempenos_contextualizados: string[]
     }
-    // Multiple competencias (new: when 2+ are selected)
+    // Backward compat
     matrices_ia?: Array<{
         competencia: string
         capacidades: string[]
         desempenos_contextualizados: string[]
     }>
+    
+    // ---- NUEVO: Colegios Públicos ----
+    aprendizajes_esperados?: Array<{
+        competencia: string
+        capacidades: string[]
+        desempenos_precisados: string[]
+        contenidos: string[]
+    }>
+    
+    criterios_evaluacion_matriz?: Array<{
+        competencia: string
+        sesion_numero: number
+        criterio: string
+        instrumento: string
+    }>
+    // -----------------------------------
+
     enfoques_transversales: {
         enfoque: string
         valor: string
         actitudes: string
+        comportamiento?: string // Nuevo campo del plan
     }[]
+    
+    /** Para colegios privados: tabla de sesiones / Para públicos: secuencia en la unidad */
     secuencia_sesiones: {
+        numero?: number
         titulo: string
-        desempenos: string
-        experiencia_aprendizaje: string
+        desempenos?: string
+        experiencia_aprendizaje?: string
+        desempeno_precisado?: string // Nuevo público
+        campo_tematico?: string // Nuevo público
+        evidencia?: string // Nuevo público
+        horas?: number // Nuevo público
     }[]
+    
+    /** (Legacy) Para colegios públicos (Paso 3 anterior) */
+    secuencia_actividades?: ActividadSecuenciaIA[]
+    
+    _tiene_contexto_institucional?: boolean
+    _modo?: 'sesiones' | 'actividades'
 }
 
 export type DistribucionPeriodo = {
@@ -190,31 +246,72 @@ export async function sugerirDistribucionCompetencias(params: {
 }
 
 /**
- * Genera el cuerpo de una Unidad de Aprendizaje (Situación, Propósito, Evidencias, Matriz)
- * de forma contextualizada a través de la Edge Function `generate-unidad-aprendizaje`.
+ * Genera el cuerpo de una Unidad de Aprendizaje usando Gemini.
  *
- * Los parámetros `contexto_institucional` y `contexto_aula` son opcionales:
- * si se proporcionan, la IA generará situaciones significativas específicas
- * a la realidad de la institución y el aula del docente.
+ * Soporta dos modos según el tipo de institución:
+ * - **Colegio privado**: pasa `sesiones_list` (modo actual)
+ * - **Colegio público**: pasa `actividades_secuencia` (nuevo modo con desempeños por actividad)
  */
 export async function generarUnidadAprendizaje(params: {
     titulo: string
     grado_nombre: string
     area_nombre: string
     duracion_semanas: number
-    sesiones_list: string[]
+    /** Modo privado: lista de títulos de sesiones */
+    sesiones_list?: string[]
+    /** Modo público: lista de actividades con campo temático y desempeño opcional */
+    actividades_secuencia?: ActividadSecuencia[]
     competencias_seleccionadas?: string[]
     /** Contexto del colegio — mejora drásticamente la situación significativa */
     contexto_institucional?: import('@/types/database.types').ContextoInstitucionalPayload | null
     /** Contexto específico del aula del docente */
     contexto_aula?: import('@/types/database.types').ContextoAulaPayload | null
+    /** Plan Anual Institucional (colegios privados) */
+    plan_institucional?: {
+        situacion_significativa?: string | null
+        enfoques_transversales?: string[] | null
+        actitudes?: string[] | null
+    }
 }): Promise<UnidadIAResult> {
     const supabase = createClient()
-    const { data, error } = await supabase.functions.invoke<UnidadIAResult>(
-        'generate-unidad-aprendizaje',
-        { body: params }
-    )
-    if (error) throw new Error(error.message)
-    if (!data) throw new Error('La función IA de unidades no devolvió datos')
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) throw new Error('Usuario no autenticado')
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/generate-unidad-aprendizaje`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': anonKey!
+        },
+        body: JSON.stringify(params)
+    })
+
+    if (!response.ok) {
+        let errorDetalle = `Error HTTP ${response.status}`
+        const errorText = await response.text().catch(() => '')
+        try {
+            if (errorText) {
+                const errJson = JSON.parse(errorText)
+                console.error('SERVER JSON ERROR:', errJson)
+                errorDetalle = errJson.error || errorDetalle
+                if (errJson.details) {
+                    errorDetalle += ` \n ${errJson.details}`
+                }
+            }
+        } catch {
+            console.error('SERVER TEXT ERROR:', errorText)
+            errorDetalle = errorText || errorDetalle
+        }
+        throw new Error(`Error en servidor: ${errorDetalle}`)
+    }
+
+    const data = await response.json()
+    if (data.error) {
+        throw new Error(`Error de IA generativa: ${data.error} \n ${data.details || ''}`)
+    }
     return data
 }
